@@ -41,6 +41,9 @@ const SUBSTYLE_KEY = "artschool.substyle";
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
+// volume vai até 200%: acima de 100% o vídeo fica em 1 e o resto vem de um GainNode (Web Audio)
+const MAX_VOLUME = 2;
+
 // como o vídeo chega ao browser; em erro de reprodução escala direct -> remux -> transcode
 type StreamMode = "direct" | "remux" | "transcode";
 type MenuId = "cc" | "settings" | "substyle" | null;
@@ -90,7 +93,9 @@ export default function Player() {
   const [curTime, setCurTime] = useState(0);
   const [videoDur, setVideoDur] = useState(0);
   const [buffered, setBuffered] = useState(0);
-  const [volume, setVolume] = useState(() => Number(localStorage.getItem("artschool.volume") ?? 1));
+  const [volume, setVolume] = useState(() =>
+    Math.max(0, Math.min(MAX_VOLUME, Number(localStorage.getItem("artschool.volume") ?? 1) || 0))
+  );
   const [rate, setRate] = useState(() => Number(localStorage.getItem(RATE_KEY) ?? 1));
   const [autoNext, setAutoNext] = useState(() => localStorage.getItem(AUTONEXT_KEY) !== "0");
   const [compat, setCompat] = useState(false); // modo compatibilidade: força recodificação
@@ -121,6 +126,11 @@ export default function Player() {
   menuRef.current = menu;
   const notesDrawerRef = useRef(false);
   notesDrawerRef.current = notesDrawer;
+  // volume booster: grafo Web Audio criado sob demanda quando o volume passa de 100%
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
+  const boostElRef = useRef<HTMLVideoElement | null>(null); // elemento já ligado ao grafo
+  const boostFailedRef = useRef(false);
 
   const updateSubStyle = (patch: Partial<SubStyle>) =>
     setSubStyle((s) => {
@@ -305,10 +315,49 @@ export default function Player() {
   }, [showControls]);
 
   // ---- volume / velocidade ----
+  // liga o <video> ao grafo gain -> compressor -> saída (uma vez por elemento;
+  // o <video> remonta a cada seek de remux, então religa quando o elemento muda)
+  const ensureBoost = (el: HTMLVideoElement) => {
+    try {
+      if (!audioCtxRef.current) {
+        const ctx = new AudioContext();
+        const gain = ctx.createGain();
+        // comprime os picos pra não estourar/distorcer com ganho alto
+        const comp = ctx.createDynamicsCompressor();
+        gain.connect(comp);
+        comp.connect(ctx.destination);
+        audioCtxRef.current = ctx;
+        gainRef.current = gain;
+      }
+      if (boostElRef.current !== el) {
+        audioCtxRef.current.createMediaElementSource(el).connect(gainRef.current!);
+        boostElRef.current = el;
+      }
+      void audioCtxRef.current.resume();
+    } catch {
+      boostFailedRef.current = true; // Web Audio indisponível: volume fica limitado a 100%
+    }
+  };
+
+  const applyVolume = (el: HTMLVideoElement, vol: number) => {
+    if (vol > 1 && !boostFailedRef.current) ensureBoost(el);
+    el.volume = Math.min(1, vol);
+    if (gainRef.current && boostElRef.current === el) gainRef.current.gain.value = Math.max(1, vol);
+  };
+
   useEffect(() => {
-    if (videoRef.current) videoRef.current.volume = volume;
+    if (videoRef.current) applyVolume(videoRef.current, volume);
     localStorage.setItem("artschool.volume", String(volume));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [volume, src]);
+
+  // fecha o AudioContext ao sair do player
+  useEffect(
+    () => () => {
+      void audioCtxRef.current?.close();
+    },
+    []
+  );
   useEffect(() => {
     if (videoRef.current) videoRef.current.playbackRate = rate;
     localStorage.setItem(RATE_KEY, String(rate));
@@ -412,7 +461,7 @@ export default function Player() {
       else if (e.key === "ArrowLeft" || e.key === "j") seek(effTime - 10);
       else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setVolume((v) => Math.min(1, +(v + 0.1).toFixed(2)));
+        setVolume((v) => Math.min(MAX_VOLUME, +(v + 0.1).toFixed(2)));
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         setVolume((v) => Math.max(0, +(v - 0.1).toFixed(2)));
@@ -540,7 +589,7 @@ export default function Player() {
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget;
                 setVideoDur(v.duration);
-                v.volume = volume;
+                applyVolume(v, volume);
                 v.playbackRate = rate;
                 if (mode === "direct" && pendingResume.current > 0) {
                   v.currentTime = pendingResume.current;
@@ -701,15 +750,19 @@ export default function Player() {
                       className="volume"
                       type="range"
                       min={0}
-                      max={1}
+                      max={MAX_VOLUME}
                       step={0.05}
                       value={volume}
                       onChange={(e) => setVolume(Number(e.target.value))}
                       style={{
-                        background: `linear-gradient(to right, #fff ${volume * 100}%, rgba(255,255,255,0.25) ${volume * 100}%)`
+                        background:
+                          volume > 1
+                            ? `linear-gradient(to right, #fff ${100 / MAX_VOLUME}%, var(--accent) ${100 / MAX_VOLUME}%, var(--accent) ${(volume / MAX_VOLUME) * 100}%, rgba(255,255,255,0.25) ${(volume / MAX_VOLUME) * 100}%)`
+                            : `linear-gradient(to right, #fff ${(volume / MAX_VOLUME) * 100}%, rgba(255,255,255,0.25) ${(volume / MAX_VOLUME) * 100}%)`
                       }}
-                      title="Volume"
+                      title={`Volume ${Math.round(volume * 100)}%`}
                     />
+                    {volume > 1 && <span className="volume-boost">{Math.round(volume * 100)}%</span>}
                   </div>
                   <span className="time-label">
                     {fmtClock(effTime)} / {fmtClock(duration)}
