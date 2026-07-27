@@ -1,6 +1,6 @@
 {
   "name": "art-school",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Plataforma pessoal de cursos (estilo Jellyfin) — assista seus cursos em qualquer dispositivo",
   "type": "module",
   "main": "dist/index.js",
