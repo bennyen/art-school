@@ -1,8 +1,13 @@
-name: Deploy Art School to Docker Hub
+name: Build and publish image
 
 on:
   push:
-    branches: [ "main", "master" ]
+    tags: ["v*"]
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: brittinho/artschool
 
 jobs:
   build-and-push:
@@ -20,11 +25,22 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Derive tags from git tag
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          flavor: latest=true
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/artschool:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
