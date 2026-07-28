@@ -4,7 +4,7 @@ import { IconRefresh, Logo } from "./components/Icons";
 
 export default function App() {
   const location = useLocation();
-  const isPlayer = location.pathname.startsWith("/aula/");
+  const isPlayer = location.pathname.startsWith("/lesson/");
   const [scanning, setScanning] = useState(false);
 
   const rescan = async () => {
@@ -29,7 +29,7 @@ export default function App() {
           </Link>
           <button className="btn-ghost" onClick={rescan} disabled={scanning}>
             <IconRefresh size={15} />
-            {scanning ? "Escaneando..." : "Reescanear"}
+            {scanning ? "Scanning..." : "Rescan"}
           </button>
         </header>
       )}

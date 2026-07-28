@@ -6,9 +6,9 @@ const required = (value: string | undefined, fallback: string): string =>
 
 export const config = {
   port: Number(required(process.env.PORT, "3000")),
-  coursesPath: path.resolve(required(process.env.COURSES_PATH, "E:\\1 - Cursos")),
+  coursesPath: path.resolve(required(process.env.COURSES_PATH, "./courses")),
   dataPath: path.resolve(required(process.env.DATA_PATH, "./data"))
 };
 
-// Garante que o diretório de dados (db + thumbs) existe
+// Make sure the data directory (database + thumbnail cache) exists
 fs.mkdirSync(path.join(config.dataPath, "thumbs"), { recursive: true });

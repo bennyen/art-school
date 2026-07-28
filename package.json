@@ -1,9 +1,23 @@
 {
   "name": "art-school",
   "version": "1.0.1",
-  "description": "Plataforma pessoal de cursos (estilo Jellyfin) — assista seus cursos em qualquer dispositivo",
+  "description": "Self-hosted platform for the video courses you own — scans a folder, tracks your progress, plays anywhere",
   "type": "module",
   "main": "dist/index.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/britto64/art-school.git"
+  },
+  "keywords": [
+    "self-hosted",
+    "video-courses",
+    "media-server",
+    "video-player",
+    "ffmpeg",
+    "sqlite",
+    "docker"
+  ],
   "scripts": {
     "dev": "concurrently -n server,web -c blue,magenta \"npm run dev:server\" \"npm run dev:web\"",
     "dev:server": "tsx watch src/index.ts",

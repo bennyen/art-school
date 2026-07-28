@@ -272,7 +272,7 @@ export const IconTypography = (p: IconProps) => (
   </Svg>
 );
 
-/** Logo: A de Arte com um play no lugar do vão */
+/** Logo: the "A" of Art with a play button filling the gap */
 export function Logo({ size = 30 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">

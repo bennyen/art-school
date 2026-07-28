@@ -2,22 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import { NoteRow, fmtClock, noteDrawingUrl } from "../api";
 import { IconCheck, IconEraser, IconPencil, IconTrash, IconX } from "./Icons";
 
-// Corpo fixo: o PNG achatado precisa se alinhar com o texto em qualquer contexto
-// (sidebar, drawer do player, modal da página do curso).
+// Fixed body size: the flattened PNG has to line up with the text in every
+// context (player sidebar, player drawer, course page modal).
 const PAPER_W = 400;
 const PAPER_H = 300;
-const SCALE = 2; // canvas 2x para nitidez
+const SCALE = 2; // 2x canvas for sharpness
 
 const PEN_COLORS = ["#1a1a1a", "#dc2626", "#2563eb", "#8b5cf6"];
 
 interface NotePaperProps {
-  note: NoteRow | null; // null = criando nova
-  /** título mostrado no header (aula + tempo ou "Nota do curso") */
+  note: NoteRow | null; // null = creating a new one
+  /** title shown in the header (lesson + timestamp, or "Course note") */
   heading: string;
   timeSec?: number | null;
   readOnly?: boolean;
   saving?: boolean;
-  /** drawing: undefined = não mexeu no desenho; null = limpar; Blob = novo PNG achatado */
+  /** drawing: undefined = untouched; null = clear it; Blob = new flattened PNG */
   onSave: (text: string, drawing: Blob | null | undefined) => void;
   onDelete?: () => void;
   onClose: () => void;
@@ -37,11 +37,11 @@ export default function NotePaper({
 }: NotePaperProps) {
   const [text, setText] = useState(note?.text ?? "");
   const [drawMode, setDrawMode] = useState(false);
-  // uma vez iniciado, o canvas fica montado até salvar (senão traços não salvos se perderiam)
+  // once started, the canvas stays mounted until save (otherwise unsaved strokes would be lost)
   const [canvasStarted, setCanvasStarted] = useState(false);
   const [penColor, setPenColor] = useState(PEN_COLORS[0]);
   const [eraser, setEraser] = useState(false);
-  // desenho: undefined = intacto; null = limpo; true = canvas tocado
+  // drawing: undefined = untouched; null = cleared; true = canvas was drawn on
   const dirtyRef = useRef<null | true | undefined>(undefined);
   const [cleared, setCleared] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -50,7 +50,7 @@ export default function NotePaper({
   const hasDrawing = Boolean(note?.hasDrawing) && !cleared;
   const drawingSrc = note && note.hasDrawing ? noteDrawingUrl(note.id, note.updatedAt) : null;
 
-  // ao iniciar o desenho, achata o PNG existente no canvas para continuar por cima
+  // when drawing starts, flatten the existing PNG onto the canvas to keep drawing over it
   useEffect(() => {
     if (!canvasStarted || !canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
@@ -84,7 +84,7 @@ export default function NotePaper({
     if (begin) {
       ctx.beginPath();
       ctx.moveTo(x, y);
-      // ponto único (clique sem arrastar)
+      // single dot (click without dragging)
       ctx.lineTo(x + 0.01, y + 0.01);
     } else {
       ctx.lineTo(x, y);
@@ -117,7 +117,7 @@ export default function NotePaper({
     if (dirtyRef.current === true && canvasRef.current) {
       canvasRef.current.toBlob((blob) => onSave(text, blob ?? undefined), "image/png");
     } else {
-      onSave(text, dirtyRef.current === null ? null : undefined); // null (limpou) ou undefined (intacto)
+      onSave(text, dirtyRef.current === null ? null : undefined); // null (cleared) or undefined (untouched)
     }
   };
 
@@ -136,11 +136,11 @@ export default function NotePaper({
         <span className="note-paper-actions">
           {headerExtra}
           {!readOnly && onDelete && (
-            <button className="note-tool" onClick={onDelete} title="Apagar nota">
+            <button className="note-tool" onClick={onDelete} title="Delete note">
               <IconTrash size={15} />
             </button>
           )}
-          <button className="note-tool" onClick={onClose} title="Fechar">
+          <button className="note-tool" onClick={onClose} title="Close">
             <IconX size={15} />
           </button>
         </span>
@@ -154,7 +154,7 @@ export default function NotePaper({
             className="note-paper-text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Escreva sua anotação..."
+            placeholder="Write your note..."
             disabled={drawMode}
             autoFocus={!drawMode}
           />
@@ -190,7 +190,7 @@ export default function NotePaper({
                   setEraser(false);
                 }
               }}
-              title={drawMode ? "Sair do desenho" : "Desenhar por cima"}
+              title={drawMode ? "Exit drawing mode" : "Draw over the note"}
             >
               <IconPencil size={15} />
             </button>
@@ -205,17 +205,17 @@ export default function NotePaper({
                       setPenColor(c);
                       setEraser(false);
                     }}
-                    title="Cor da caneta"
+                    title="Pen color"
                   />
                 ))}
                 <button
                   className={`note-tool${eraser ? " active" : ""}`}
                   onClick={() => setEraser((v) => !v)}
-                  title="Borracha"
+                  title="Eraser"
                 >
                   <IconEraser size={15} />
                 </button>
-                <button className="note-tool" onClick={clearDrawing} title="Limpar desenho">
+                <button className="note-tool" onClick={clearDrawing} title="Clear drawing">
                   <IconTrash size={15} />
                 </button>
               </>
@@ -223,7 +223,7 @@ export default function NotePaper({
           </span>
           <button className="btn-primary note-save" onClick={handleSave} disabled={saving}>
             <IconCheck size={15} />
-            {saving ? "Salvando..." : "Salvar"}
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       )}

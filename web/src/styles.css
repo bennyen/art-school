@@ -8,10 +8,10 @@
   --accent-strong: #8b5cf6;
   --ok: #34d399;
   --border: #343d54;
-  --hard: #05070c; /* sombra dura */
+  --hard: #05070c; /* hard shadow */
 }
 
-/* ícones alinham com texto dentro de botões/links */
+/* icons line up with text inside buttons/links */
 button svg,
 a svg,
 .with-icon svg {
@@ -693,7 +693,7 @@ button {
   box-shadow: none;
 }
 
-/* ---- layout duas colunas: player | aulas ---- */
+/* ---- two-column layout: player | lessons ---- */
 .player-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
@@ -760,7 +760,7 @@ button {
   margin-top: 18px;
 }
 
-/* ---- sidebar de aulas ---- */
+/* ---- lesson sidebar ---- */
 .player-sidebar {
   border-left: 1px solid var(--border);
   background: var(--bg-card);
@@ -961,7 +961,7 @@ button {
   pointer-events: none;
 }
 
-/* ---- timeline customizada (fill + buffer + thumb) ---- */
+/* ---- custom timeline (fill + buffer + thumb) ---- */
 .seekbar-wrap {
   position: relative;
   padding: 10px 0 6px;
@@ -1079,14 +1079,14 @@ button {
   border-radius: 8px 8px 4px 4px;
 }
 
-/* ---- volume (mudo + slider que expande) ---- */
+/* ---- volume (mute + expanding slider) ---- */
 .ctrl-volume {
   display: flex;
   align-items: center;
   gap: 3px;
 }
 
-/* volume acima de 100% (booster) */
+/* volume above 100% (booster) */
 .volume-boost {
   font-size: 11px;
   font-weight: 800;
@@ -1136,7 +1136,7 @@ button {
   }
 }
 
-/* ---- menus dropup (legendas / configurações) ---- */
+/* ---- drop-up menus (subtitles / settings) ---- */
 .menu-anchor {
   position: relative;
   display: flex;
@@ -1263,7 +1263,7 @@ button {
   box-shadow: 2px 2px 0 var(--hard);
 }
 
-/* ---- switch (toggles dos menus) ---- */
+/* ---- switch (menu toggles) ---- */
 .switch {
   flex-shrink: 0;
   width: 34px;
@@ -1293,7 +1293,7 @@ button {
   left: 17px;
 }
 
-/* ---- spinner de buffering ---- */
+/* ---- buffering spinner ---- */
 .player-spinner {
   position: absolute;
   inset: 0;
@@ -1320,7 +1320,7 @@ button {
   }
 }
 
-/* ---- erro de reprodução ---- */
+/* ---- playback error ---- */
 .player-error {
   position: absolute;
   inset: 0;
@@ -1347,7 +1347,7 @@ button {
   align-self: center;
 }
 
-/* ---------- thumbs de aula ---------- */
+/* ---------- lesson thumbnails ---------- */
 .lesson-thumb {
   flex: 0 0 96px;
   width: 96px;
@@ -1366,7 +1366,7 @@ button {
 }
 
 .lesson-thumb.empty img {
-  display: none; /* mantém o placeholder escuro se a thumb falhar */
+  display: none; /* keeps the dark placeholder when the thumbnail fails */
 }
 
 .lesson-thumb.small {
@@ -1388,7 +1388,7 @@ button {
   flex: 1;
 }
 
-/* ---------- trickplay (preview da timeline) ---------- */
+/* ---------- trickplay (timeline preview) ---------- */
 .seek-preview {
   position: absolute;
   bottom: 24px;
@@ -1419,7 +1419,7 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- rows horizontais (home) ---------- */
+/* ---------- horizontal rows (home) ---------- */
 .scroll-row {
   display: flex;
   gap: 14px;
@@ -1445,7 +1445,7 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- poster card (meus cursos) ---------- */
+/* ---------- poster card (my courses) ---------- */
 .poster-card {
   position: relative;
   flex: 0 0 218px;
@@ -1528,7 +1528,7 @@ button {
   background: rgba(255, 255, 255, 0.18);
 }
 
-/* ---------- compact card (rows por categoria) ---------- */
+/* ---------- compact card (per-category rows) ---------- */
 .compact-card {
   flex: 0 0 212px;
   display: flex;
@@ -1589,7 +1589,7 @@ button {
   color: #fbbf24;
 }
 
-/* ---------- hero: editar + professor ---------- */
+/* ---------- hero: edit + instructor ---------- */
 .hero-edit {
   position: absolute;
   top: 14px;
@@ -1624,7 +1624,7 @@ button {
   font-weight: 600;
 }
 
-/* ---------- modal de edição ---------- */
+/* ---------- edit modal ---------- */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1839,7 +1839,7 @@ button {
   gap: 12px;
 }
 
-/* ---------- legendas customizáveis (overlay próprio) ---------- */
+/* ---------- customizable subtitles (own overlay) ---------- */
 .sub-overlay {
   position: absolute;
   left: 5%;
@@ -1855,7 +1855,7 @@ button {
 }
 
 .sub-overlay.raised {
-  bottom: 90px; /* sobe quando os controles aparecem */
+  bottom: 90px; /* moves up when the controls are visible */
 }
 
 .sub-line {
@@ -1932,9 +1932,9 @@ button {
   padding-top: 8px;
 }
 
-/* ---------- anotações ---------- */
+/* ---------- notes ---------- */
 
-/* papel branco da nota */
+/* white note paper */
 .note-paper {
   background: #fbfaf4;
   color: #1a1a1a;
@@ -1985,13 +1985,13 @@ button {
   flex-shrink: 0;
 }
 
-/* corpo fixo: o PNG do desenho precisa se alinhar com o texto em qualquer contexto */
+/* fixed body: the drawing PNG must line up with the text in every context */
 .note-paper-body {
   position: relative;
   width: 400px;
   height: 300px;
   max-width: 100%;
-  /* linhas de caderno alinhadas ao line-height de 28px do texto */
+  /* notebook rules aligned to the 28px line-height of the text */
   background-image: repeating-linear-gradient(transparent, transparent 27px, #ddd8c6 27px, #ddd8c6 28px);
   background-origin: content-box;
 }
@@ -2078,7 +2078,7 @@ button {
   color: var(--hard);
 }
 
-/* nos headers escuros (gaveta do player) o note-tool herda o tema dark */
+/* on dark headers (player drawer) note-tool inherits the dark theme */
 .notes-drawer-head .note-tool {
   background: var(--bg-card);
   color: var(--text);
@@ -2108,7 +2108,7 @@ button {
   font-size: 13px;
 }
 
-/* painel de notas (lista) */
+/* notes panel (list) */
 .notes-panel {
   display: flex;
   flex-direction: column;
@@ -2222,7 +2222,7 @@ button {
   overflow: hidden;
 }
 
-/* grade na página do curso */
+/* grid on the course page */
 .notes-panel:not(.compact) .notes-list {
   gap: 16px;
 }
@@ -2245,7 +2245,7 @@ button {
   max-width: calc(100vw - 40px);
 }
 
-/* gaveta de notas no player (funciona em fullscreen: fica dentro do .video-wrap) */
+/* notes drawer in the player (works in fullscreen: lives inside .video-wrap) */
 .notes-drawer {
   position: absolute;
   top: 0;
@@ -2289,7 +2289,7 @@ button {
   z-index: 1;
 }
 
-/* marcador de nota na timeline */
+/* note marker on the timeline */
 .note-marker {
   position: absolute;
   top: -8px;
@@ -2348,7 +2348,7 @@ button {
   overflow: hidden;
 }
 
-/* abas da sidebar do player */
+/* player sidebar tabs */
 .sidebar-tabs {
   display: flex;
   gap: 6px;
@@ -2383,7 +2383,7 @@ button {
   overflow-y: auto;
 }
 
-/* ---------- responsivo ---------- */
+/* ---------- responsive ---------- */
 @media (max-width: 640px) {
   .page {
     padding: 16px 14px 60px;
@@ -2411,7 +2411,7 @@ button {
   }
 }
 
-/* player: sidebar vai para baixo em telas estreitas */
+/* player: the sidebar moves below on narrow screens */
 @media (max-width: 1000px) {
   .player-layout {
     grid-template-columns: 1fr;

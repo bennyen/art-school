@@ -1,0 +1,17 @@
+services:
+  artschool:
+    image: brittinho/artschool:latest
+    # pull_policy: always   # uncomment to always fetch the newest image on up
+    container_name: artschool
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # your course library — read-only is enough
+      - /path/to/your/courses:/courses:ro
+      # database, thumbnails and timeline previews — must be writable
+      - ./artschool-data:/app/data
+    environment:
+      - COURSES_PATH=/courses
+      - DATA_PATH=/app/data
+      - PORT=3000

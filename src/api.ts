@@ -1,6 +1,7 @@
 import { Router, raw } from "express";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { config } from "./config.js";
 import { db } from "./db.js";
 import { scanLibrary } from "./scanner.js";
@@ -18,10 +19,10 @@ export const api = Router();
 
 const absPath = (relPath: string) => path.join(config.coursesPath, relPath);
 
-// mp4/webm tocam direto no browser; o resto (mkv, avi, mov) passa por remux
+// mp4/webm play natively in the browser; everything else (mkv, avi, mov) goes through remux
 const DIRECT_PLAY = new Set([".mp4", ".m4v", ".webm"]);
 
-// ---------- tipos de material ----------
+// ---------- material types ----------
 export type MaterialKind = "video" | "image" | "pdf" | "text" | "audio" | "brush" | "psd" | "clip" | "archive" | "other";
 
 const KIND_BY_EXT: Record<string, MaterialKind> = {
@@ -36,7 +37,7 @@ const KIND_BY_EXT: Record<string, MaterialKind> = {
   ".zip": "archive", ".rar": "archive", ".7z": "archive"
 };
 
-// tipos que o navegador consegue abrir direto (ou via remux, no caso de vídeo)
+// kinds the browser can open directly (or through remux, for video)
 const VIEWABLE: Set<MaterialKind> = new Set(["video", "image", "pdf", "text", "audio"]);
 
 const materialKind = (relPath: string): MaterialKind =>
@@ -81,8 +82,8 @@ api.get("/courses", (_req, res) => {
     )
     .all() as unknown as CourseSummary[];
 
-  // atividade recente (em andamento OU concluída) — um card por curso:
-  // aula pela metade continua de onde parou; aula concluída sugere a próxima do curso
+  // recent activity (in progress OR completed) — one card per course:
+  // a half-watched lesson resumes where it stopped, a completed one suggests the next lesson
   const recent = db
     .prepare(
       `SELECT p.lesson_id AS lessonId, p.position_sec AS position, p.updated_at AS updatedAt,
@@ -137,7 +138,7 @@ api.get("/courses", (_req, res) => {
         isNext: false
       });
     } else {
-      // próxima aula não concluída (preferindo a seguinte na ordem; curso 100% fica de fora)
+      // next unfinished lesson (preferring the one right after; fully watched courses are skipped)
       const next = nextLessonStmt.get(r.courseId, r.sectionOrder, r.sectionOrder, r.sortOrder) as
         | { lessonId: string; lessonTitle: string; duration: number | null; position: number }
         | undefined;
@@ -167,7 +168,7 @@ api.get("/courses", (_req, res) => {
       completedCount: c.completed_count,
       sectionCount: c.section_count,
       totalDuration: c.total_duration,
-      // durações ainda sendo calculadas pelo ffprobe: o total exibido é parcial
+      // durations still being computed by ffprobe: the total shown is partial
       durationPartial: c.missing_durations > 0,
       progressPct: c.lesson_count > 0 ? Math.round((c.completed_count / c.lesson_count) * 100) : 0,
       lastWatched: c.last_watched
@@ -176,7 +177,7 @@ api.get("/courses", (_req, res) => {
   });
 });
 
-// ---------- Página do curso ----------
+// ---------- Course page ----------
 api.get("/courses/:id", (req, res) => {
   const course = db
     .prepare(
@@ -186,7 +187,7 @@ api.get("/courses/:id", (req, res) => {
        WHERE c.id = ?`
     )
     .get(req.params.id) as Record<string, unknown> | undefined;
-  if (!course) return res.status(404).json({ error: "Curso não encontrado" });
+  if (!course) return res.status(404).json({ error: "Course not found" });
 
   const lessons = db
     .prepare(
@@ -207,7 +208,7 @@ api.get("/courses/:id", (req, res) => {
     completed: number;
   }[];
 
-  // agrupa por seção preservando a ordem
+  // group by section, preserving order
   const sections: { title: string | null; lessons: typeof lessons }[] = [];
   for (const l of lessons) {
     const last = sections[sections.length - 1];
@@ -229,7 +230,7 @@ api.get("/courses/:id", (req, res) => {
     title: course.meta_title ?? course.title,
     category: course.meta_category ?? course.category,
     teacher: course.teacher ?? null,
-    // valores derivados da pasta (para o formulário de edição saber o "padrão")
+    // values derived from the folder (so the edit form knows the defaults)
     folderTitle: course.title,
     folderCategory: course.category,
     hasCustomBanner: Boolean(course.has_custom_banner),
@@ -238,11 +239,11 @@ api.get("/courses/:id", (req, res) => {
   });
 });
 
-// ---------- Edição de metadados do curso ----------
+// ---------- Course metadata editing ----------
 const courseExists = (id: string) => db.prepare("SELECT 1 FROM courses WHERE id = ?").get(id) !== undefined;
 
 api.put("/courses/:id/meta", (req, res) => {
-  if (!courseExists(req.params.id)) return res.status(404).json({ error: "Curso não encontrado" });
+  if (!courseExists(req.params.id)) return res.status(404).json({ error: "Course not found" });
   const norm = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
   const { title, category, teacher } = req.body as Record<string, unknown>;
   db.prepare(
@@ -253,7 +254,7 @@ api.put("/courses/:id/meta", (req, res) => {
   res.json({ ok: true });
 });
 
-// aulas espalhadas pelo curso para o usuário escolher um frame como banner
+// lessons spread across the course, so the user can pick a frame as the banner
 api.get("/courses/:id/thumb-suggestions", (req, res) => {
   const lessons = db
     .prepare("SELECT id, title FROM lessons WHERE course_id = ? ORDER BY section_order, sort_order")
@@ -277,37 +278,37 @@ const saveBanner = (courseId: string, img: Uint8Array | null, mime: string | nul
      ON CONFLICT(course_id) DO UPDATE SET banner = excluded.banner, banner_mime = excluded.banner_mime`
   ).run(courseId, img, mime);
 
-// upload de imagem (corpo raw: image/jpeg, image/png, image/webp)
+// image upload (raw body: image/jpeg, image/png, image/webp)
 api.post("/courses/:id/banner", raw({ type: "image/*", limit: "15mb" }), (req, res) => {
-  if (!courseExists(req.params.id)) return res.status(404).json({ error: "Curso não encontrado" });
+  if (!courseExists(req.params.id)) return res.status(404).json({ error: "Course not found" });
   if (!Buffer.isBuffer(req.body) || req.body.length === 0)
-    return res.status(400).json({ error: "Envie a imagem no corpo da requisição (Content-Type image/*)" });
+    return res.status(400).json({ error: "Send the image in the request body (Content-Type image/*)" });
   saveBanner(req.params.id, req.body, req.headers["content-type"] ?? "image/jpeg");
   res.json({ ok: true });
 });
 
-// usa um frame de uma aula como banner
+// use a frame from a lesson as the course banner
 api.post("/courses/:id/banner/from-lesson", async (req, res) => {
   const { lessonId } = req.body as { lessonId?: string };
-  if (!lessonId) return res.status(400).json({ error: "lessonId obrigatório" });
+  if (!lessonId) return res.status(400).json({ error: "lessonId is required" });
   const lesson = db.prepare("SELECT course_id FROM lessons WHERE id = ?").get(lessonId) as
     | { course_id: string }
     | undefined;
   if (!lesson || lesson.course_id !== req.params.id)
-    return res.status(404).json({ error: "Aula não encontrada neste curso" });
+    return res.status(404).json({ error: "Lesson not found in this course" });
   const img = await generateFrameFromLesson(lessonId);
-  if (!img) return res.status(500).json({ error: "Não foi possível extrair o frame" });
+  if (!img) return res.status(500).json({ error: "Could not extract the frame" });
   saveBanner(req.params.id, img, "image/jpeg");
   res.json({ ok: true });
 });
 
-// remove a imagem customizada (volta pro cover.jpg / frame automático)
+// drop the custom image (falls back to cover.jpg / auto-generated frame)
 api.delete("/courses/:id/banner", (req, res) => {
   db.prepare("UPDATE course_meta SET banner = NULL, banner_mime = NULL WHERE course_id = ?").run(req.params.id);
   res.json({ ok: true });
 });
 
-// ---------- Payload do player ----------
+// ---------- Player payload ----------
 api.get("/lessons/:id", (req, res) => {
   const lesson = db
     .prepare(
@@ -316,7 +317,7 @@ api.get("/lessons/:id", (req, res) => {
        WHERE l.id = ?`
     )
     .get(req.params.id) as Record<string, unknown> | undefined;
-  if (!lesson) return res.status(404).json({ error: "Aula não encontrada" });
+  if (!lesson) return res.status(404).json({ error: "Lesson not found" });
 
   const course = db.prepare("SELECT id, title FROM courses WHERE id = ?").get(lesson.course_id as string);
   const siblings = db
@@ -358,7 +359,7 @@ api.get("/stream/:id", async (req, res) => {
   const transcode = req.query.transcode === "1";
 
   if (DIRECT_PLAY.has(ext) && !transcode) {
-    // Streaming direto com suporte a Range (seek nativo)
+    // Direct streaming with Range support (native seeking)
     const stat = fs.statSync(file);
     const contentType = ext === ".webm" ? "video/webm" : "video/mp4";
     const range = req.headers.range;
@@ -382,7 +383,7 @@ api.get("/stream/:id", async (req, res) => {
     return;
   }
 
-  // Remux (mkv etc.): mp4 fragmentado via ffmpeg; seek = novo request com ?t=
+  // Remux (mkv and friends): fragmented mp4 via ffmpeg; seeking = new request with ?t=
   const startSec = Math.max(0, Number(req.query.t) || 0);
   const codecs = await probeCodecs(file);
   res.setHeader("Content-Type", "video/mp4");
@@ -397,10 +398,10 @@ api.get("/stream/:id", async (req, res) => {
   ff.on("error", () => res.destroy());
 });
 
-// ---------- Legendas (SRT -> WebVTT) ----------
+// ---------- Subtitles (SRT -> WebVTT) ----------
 function srtToVtt(buf: Buffer): string {
   let text = buf.toString("utf8");
-  if (text.includes("�")) text = buf.toString("latin1"); // arquivos antigos em latin1
+  if (text.includes("�")) text = buf.toString("latin1"); // legacy latin1 files
   text = text.replace(/^﻿/, "");
   if (/^\s*WEBVTT/.test(text)) return text;
   const converted = text
@@ -420,7 +421,7 @@ api.get("/subtitles/:id", (req, res) => {
   res.send(srtToVtt(fs.readFileSync(file)));
 });
 
-// ---------- Materiais ----------
+// ---------- Materials ----------
 api.get("/materials/:id", (req, res) => {
   const mat = db.prepare("SELECT rel_path, name FROM materials WHERE id = ?").get(req.params.id) as
     | { rel_path: string; name: string }
@@ -431,7 +432,7 @@ api.get("/materials/:id", (req, res) => {
   res.download(file, path.basename(mat.rel_path));
 });
 
-// visualizar material no navegador (imagem/pdf/txt direto; vídeo via remux se preciso)
+// view a material in the browser (image/pdf/txt directly; video through remux when needed)
 api.get("/materials/:id/view", async (req, res) => {
   const mat = db.prepare("SELECT rel_path FROM materials WHERE id = ?").get(req.params.id) as
     | { rel_path: string }
@@ -444,7 +445,7 @@ api.get("/materials/:id/view", async (req, res) => {
   const kind = materialKind(mat.rel_path);
 
   if (kind === "video" && !DIRECT_PLAY.has(ext)) {
-    // .mov/.mkv/.avi: remux para mp4 fragmentado, igual às aulas
+    // .mov/.mkv/.avi: remux to fragmented mp4, same as lessons
     const codecs = await probeCodecs(file);
     res.setHeader("Content-Type", "video/mp4");
     const ff = remuxStream(file, 0, false, codecs);
@@ -460,12 +461,12 @@ api.get("/materials/:id/view", async (req, res) => {
   }
 
   if (!VIEWABLE.has(kind)) {
-    // não dá para abrir no navegador — cai no download
+    // cannot be opened in the browser — fall back to download
     return res.download(file, path.basename(mat.rel_path));
   }
 
   if (kind === "text") res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.sendFile(file); // sendFile já cuida de Content-Type e Range (seek de vídeo mp4)
+  res.sendFile(file); // sendFile already handles Content-Type and Range (mp4 seeking)
 });
 
 // ---------- Thumbnails / banners ----------
@@ -475,7 +476,7 @@ const sendJpeg = (res: import("express").Response, img: Uint8Array) => {
   res.end(Buffer.from(img.buffer, img.byteOffset, img.byteLength));
 };
 
-// thumbnail de uma aula (gera sob demanda e cacheia na db)
+// lesson thumbnail (generated on demand and cached in the database)
 api.get("/thumb/lesson/:id", async (req, res) => {
   const img = await getLessonThumb(req.params.id);
   if (!img) return res.status(404).end();
@@ -488,7 +489,7 @@ api.get("/thumb/:courseId", async (req, res) => {
     | undefined;
   if (!course) return res.status(404).end();
 
-  // imagem escolhida/enviada pelo usuário tem prioridade máxima
+  // an image picked/uploaded by the user always wins
   const meta = db
     .prepare("SELECT banner, banner_mime FROM course_meta WHERE course_id = ?")
     .get(course.id) as { banner: Uint8Array | null; banner_mime: string | null } | undefined;
@@ -498,13 +499,13 @@ api.get("/thumb/:courseId", async (req, res) => {
     return res.end(Buffer.from(meta.banner.buffer, meta.banner.byteOffset, meta.banner.byteLength));
   }
 
-  // depois, cover.jpg manual na pasta
+  // then, a manual cover.jpg in the folder
   if (course.banner) {
     const file = absPath(course.banner);
     if (fs.existsSync(file)) return res.sendFile(file);
   }
 
-  // senão, gera do primeiro vídeo
+  // otherwise, grab a frame from the first video
   const first = db
     .prepare("SELECT rel_path FROM lessons WHERE course_id = ? ORDER BY section_order, sort_order LIMIT 1")
     .get(course.id) as { rel_path: string } | undefined;
@@ -514,7 +515,7 @@ api.get("/thumb/:courseId", async (req, res) => {
   res.sendFile(thumb);
 });
 
-// ---------- Trickplay (preview da timeline) ----------
+// ---------- Trickplay (timeline preview) ----------
 api.get("/trickplay/:id", (req, res) => {
   const tp = db
     .prepare(
@@ -523,7 +524,7 @@ api.get("/trickplay/:id", (req, res) => {
     .get(req.params.id) as
     | { interval: number; tile_w: number; tile_h: number; tile_cols: number; tile_rows: number; frames: number; sheets: number }
     | undefined;
-  if (!tp || tp.frames === 0) return res.status(404).json({ error: "Trickplay indisponível" });
+  if (!tp || tp.frames === 0) return res.status(404).json({ error: "Trickplay unavailable" });
   res.json({
     interval: tp.interval,
     tileW: tp.tile_w,
@@ -543,30 +544,31 @@ api.get("/trickplay/:id/:sheet", (req, res) => {
   sendJpeg(res, row.img);
 });
 
-// ---------- Progresso ----------
+// ---------- Progress ----------
 api.post("/progress", (req, res) => {
   const { lessonId, position, completed } = req.body as {
     lessonId?: string;
     position?: number;
     completed?: boolean;
   };
-  if (!lessonId) return res.status(400).json({ error: "lessonId obrigatório" });
+  if (!lessonId) return res.status(400).json({ error: "lessonId is required" });
   const lesson = db.prepare("SELECT id, duration FROM lessons WHERE id = ?").get(lessonId) as
     | { id: string; duration: number | null }
     | undefined;
-  if (!lesson) return res.status(404).json({ error: "Aula não encontrada" });
+  if (!lesson) return res.status(404).json({ error: "Lesson not found" });
 
   const pos = Math.max(0, Number(position) || 0);
   let done: number;
   if (typeof completed === "boolean") {
-    done = completed ? 1 : 0; // marcação manual
+    done = completed ? 1 : 0; // manual toggle
   } else {
     const existing = db.prepare("SELECT completed FROM progress WHERE lesson_id = ?").get(lessonId) as
       | { completed: number }
       | undefined;
     done = existing?.completed ?? 0;
-    // completa automaticamente: >= 90% assistido, ou faltando <= 30s pro fim
-    // (regra dos 30s só em aulas > 60s, senão vídeos curtos completariam no primeiro save)
+    // auto-complete: >= 90% watched, or 30s or less left
+    // (the 30s rule only applies to lessons longer than 60s, otherwise short
+    // videos would complete on the very first save)
     if (
       !done &&
       lesson.duration &&
@@ -585,10 +587,10 @@ api.post("/progress", (req, res) => {
   res.json({ ok: true, completed: done === 1 });
 });
 
-// ---------- Anotações ----------
-// Notas do curso: lista sem o blob do desenho (só a flag hasDrawing)
+// ---------- Notes ----------
+// Course notes: listed without the drawing blob (only the hasDrawing flag)
 api.get("/courses/:id/notes", (req, res) => {
-  if (!courseExists(req.params.id)) return res.status(404).json({ error: "Curso não encontrado" });
+  if (!courseExists(req.params.id)) return res.status(404).json({ error: "Course not found" });
   const rows = db
     .prepare(
       `SELECT n.id, n.lesson_id AS lessonId, n.time_sec AS timeSec, n.text,
@@ -603,14 +605,14 @@ api.get("/courses/:id/notes", (req, res) => {
 });
 
 api.post("/courses/:id/notes", (req, res) => {
-  if (!courseExists(req.params.id)) return res.status(404).json({ error: "Curso não encontrado" });
+  if (!courseExists(req.params.id)) return res.status(404).json({ error: "Course not found" });
   const { lessonId, timeSec, text } = req.body as { lessonId?: string; timeSec?: number; text?: string };
   if (lessonId) {
     const lesson = db.prepare("SELECT course_id FROM lessons WHERE id = ?").get(lessonId) as
       | { course_id: string }
       | undefined;
     if (!lesson || lesson.course_id !== req.params.id)
-      return res.status(404).json({ error: "Aula não encontrada neste curso" });
+      return res.status(404).json({ error: "Lesson not found in this course" });
   }
   const id = crypto.randomUUID();
   db.prepare(
@@ -631,7 +633,7 @@ api.put("/notes/:id", (req, res) => {
   const r = db
     .prepare("UPDATE notes SET text = ?, updated_at = datetime('now') WHERE id = ?")
     .run(typeof text === "string" ? text : "", req.params.id);
-  if (r.changes === 0) return res.status(404).json({ error: "Nota não encontrada" });
+  if (r.changes === 0) return res.status(404).json({ error: "Note not found" });
   res.json({ ok: true });
 });
 
@@ -640,14 +642,14 @@ api.delete("/notes/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-// desenho por cima do texto (PNG achatado, corpo raw como o banner)
+// drawing layered over the text (flattened PNG, raw body like the banner)
 api.put("/notes/:id/drawing", raw({ type: "image/*", limit: "15mb" }), (req, res) => {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0)
-    return res.status(400).json({ error: "Envie a imagem no corpo da requisição (Content-Type image/*)" });
+    return res.status(400).json({ error: "Send the image in the request body (Content-Type image/*)" });
   const r = db
     .prepare("UPDATE notes SET drawing = ?, drawing_mime = ?, updated_at = datetime('now') WHERE id = ?")
     .run(req.body, req.headers["content-type"] ?? "image/png", req.params.id);
-  if (r.changes === 0) return res.status(404).json({ error: "Nota não encontrada" });
+  if (r.changes === 0) return res.status(404).json({ error: "Note not found" });
   res.json({ ok: true });
 });
 
@@ -664,7 +666,7 @@ api.delete("/notes/:id/drawing", (req, res) => {
   const r = db
     .prepare("UPDATE notes SET drawing = NULL, drawing_mime = NULL, updated_at = datetime('now') WHERE id = ?")
     .run(req.params.id);
-  if (r.changes === 0) return res.status(404).json({ error: "Nota não encontrada" });
+  if (r.changes === 0) return res.status(404).json({ error: "Note not found" });
   res.json({ ok: true });
 });
 

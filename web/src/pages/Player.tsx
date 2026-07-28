@@ -41,18 +41,19 @@ const SUBSTYLE_KEY = "artschool.substyle";
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
-// volume vai até 200%: acima de 100% o vídeo fica em 1 e o resto vem de um GainNode (Web Audio)
+// volume goes up to 200%: above 100% the video element stays at 1 and the rest
+// comes from a GainNode (Web Audio)
 const MAX_VOLUME = 2;
 
-// como o vídeo chega ao browser; em erro de reprodução escala direct -> remux -> transcode
+// how the video reaches the browser; on a playback error it escalates direct -> remux -> transcode
 type StreamMode = "direct" | "remux" | "transcode";
 type MenuId = "cc" | "settings" | "substyle" | null;
 
-// estilo global das legendas (vale para todos os cursos)
+// global subtitle style (shared across every course)
 interface SubStyle {
   size: number; // px
   color: string;
-  bg: number; // opacidade do fundo 0..1
+  bg: number; // background opacity 0..1
   outline: boolean;
 }
 
@@ -68,7 +69,7 @@ function loadSubStyle(): SubStyle {
   }
 }
 
-// mantém só <i>/<b>/<u> do texto da legenda
+// keeps only <i>/<b>/<u> from the subtitle text
 const sanitizeCue = (t: string) => t.replace(/<(?!\/?(i|b|u)\b)[^>]*>/gi, "");
 
 export default function Player() {
@@ -84,9 +85,9 @@ export default function Player() {
   const [error, setError] = useState<string | null>(null);
 
   const [mode, setMode] = useState<StreamMode>("direct");
-  // offset do remux: o <video> começa em 0, mas o tempo real é offset + currentTime
+  // remux offset: the <video> starts at 0, but the real time is offset + currentTime
   const [offset, setOffset] = useState(0);
-  const [reloadKey, setReloadKey] = useState(0); // força remontar o <video> quando o src não muda
+  const [reloadKey, setReloadKey] = useState(0); // forces the <video> to remount when the src does not change
   const [fatal, setFatal] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -98,27 +99,27 @@ export default function Player() {
   );
   const [rate, setRate] = useState(() => Number(localStorage.getItem(RATE_KEY) ?? 1));
   const [autoNext, setAutoNext] = useState(() => localStorage.getItem(AUTONEXT_KEY) !== "0");
-  const [compat, setCompat] = useState(false); // modo compatibilidade: força recodificação
+  const [compat, setCompat] = useState(false); // compatibility mode: forces re-encoding
   const [subLang, setSubLang] = useState<string | null>(null);
   const [subStyle, setSubStyle] = useState<SubStyle>(loadSubStyle);
   const [cueLines, setCueLines] = useState<string[]>([]);
   const [menu, setMenu] = useState<MenuId>(null);
   const [showControls, setShowControls] = useState(true);
-  const [drag, setDrag] = useState<number | null>(null); // arrastando a timeline
-  // trickplay: preview de frames ao passar o mouse na timeline
+  const [drag, setDrag] = useState<number | null>(null); // dragging the timeline
+  // trickplay: frame preview while hovering the timeline
   const [tp, setTp] = useState<TrickplayMeta | null>(null);
   const [hover, setHover] = useState<{ x: number; time: number } | null>(null);
-  // anotações
+  // notes
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [sidebarTab, setSidebarTab] = useState<"lessons" | "notes">("lessons");
   const [notesDrawer, setNotesDrawer] = useState(false);
-  const [openNoteId, setOpenNoteId] = useState<string | null>(null); // nota aberta via marcador da timeline
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null); // note opened from a timeline marker
   const [markerHover, setMarkerHover] = useState<string | null>(null);
 
   const hideTimer = useRef<ReturnType<typeof setTimeout>>();
-  const pendingResume = useRef(0); // seek pendente do direct play (aplicado no loadedmetadata)
-  // última posição real conhecida: no unmount o <video> já foi destruído, então o save
-  // final não pode ler videoRef (era isso que zerava o progresso ao navegar pela SPA)
+  const pendingResume = useRef(0); // pending seek for direct play (applied on loadedmetadata)
+  // last known real position: on unmount the <video> is already gone, so the final
+  // save cannot read videoRef (that was what used to reset progress on SPA navigation)
   const lastPos = useRef(0);
   const lastVolume = useRef(1);
   const compatRef = useRef(false);
@@ -126,10 +127,10 @@ export default function Player() {
   menuRef.current = menu;
   const notesDrawerRef = useRef(false);
   notesDrawerRef.current = notesDrawer;
-  // volume booster: grafo Web Audio criado sob demanda quando o volume passa de 100%
+  // volume booster: Web Audio graph created on demand when volume goes above 100%
   const audioCtxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
-  const boostElRef = useRef<HTMLVideoElement | null>(null); // elemento já ligado ao grafo
+  const boostElRef = useRef<HTMLVideoElement | null>(null); // element already wired to the graph
   const boostFailedRef = useRef(false);
 
   const updateSubStyle = (patch: Partial<SubStyle>) =>
@@ -139,7 +140,7 @@ export default function Player() {
       return next;
     });
 
-  // ---- carga da aula ----
+  // ---- lesson loading ----
   useEffect(() => {
     setData(null);
     setOffset(0);
@@ -155,9 +156,9 @@ export default function Player() {
     apiGet<PlayerData>(`/api/lessons/${id}`)
       .then((d) => {
         setData(d);
-        // deep-link ?t= (ex.: "ir para o momento" de uma anotação) ganha da retomada
+        // a ?t= deep link (e.g. "jump to this moment" from a note) beats resuming
         const tParam = Number(searchParams.get("t"));
-        // retoma de onde parou (se não estiver praticamente no fim)
+        // resume where it stopped (unless it is basically at the end)
         const resume =
           isFinite(tParam) && tParam > 0
             ? tParam
@@ -169,13 +170,12 @@ export default function Player() {
         setMode(m);
         if (m === "direct") pendingResume.current = resume;
         else setOffset(Math.floor(resume));
-        // legenda preferida
+        // preferred subtitle
         const pref = localStorage.getItem(SUB_PREF_KEY);
         const langs = d.subtitles.map((s) => s.lang);
         const pick =
           (pref && langs.includes(pref) && pref) ||
-          langs.find((l) => l === "Padrão") ||
-          langs.find((l) => /portug/i.test(l)) ||
+          langs.find((l) => l === "Default") ||
           langs.find((l) => /english/i.test(l)) ||
           null;
         setSubLang(pick);
@@ -191,13 +191,13 @@ export default function Player() {
     apiGet<TrickplayMeta>(`/api/trickplay/${id}`).then(setTp).catch(() => {});
   }, [id]);
 
-  // ---- curso (sidebar de aulas + materiais) ----
+  // ---- course (lesson sidebar + materials) ----
   useEffect(() => {
     if (!data?.course.id) return;
     apiGet<CourseDetail>(`/api/courses/${data.course.id}`).then(setCourse).catch(() => {});
   }, [data?.course.id, id]);
 
-  // ---- anotações do curso ----
+  // ---- course notes ----
   const refreshNotes = useCallback(() => {
     if (!data?.course.id) return;
     listNotes(data.course.id).then(setNotes).catch(() => {});
@@ -209,12 +209,13 @@ export default function Player() {
   }, [refreshNotes]);
 
   const effTime = mode === "direct" ? curTime : offset + curTime;
-  // no remux o <video> só conhece o trecho atual; o total vem do ffprobe (ou offset + trecho)
+  // while remuxing the <video> only knows the current chunk; the total comes from
+  // ffprobe (or offset + chunk length)
   const duration =
     data?.duration ??
     (videoDur > 0 && isFinite(videoDur) ? (mode === "direct" ? videoDur : offset + videoDur) : 0);
 
-  // ---- src do vídeo ----
+  // ---- video src ----
   const src = useMemo(() => {
     if (!data) return undefined;
     if (mode === "direct") return `/api/stream/${data.id}`;
@@ -222,7 +223,7 @@ export default function Player() {
     return mode === "transcode" ? `${base}&transcode=1` : base;
   }, [data, mode, offset]);
 
-  // ---- progresso ----
+  // ---- progress ----
   const save = useCallback(
     (completed?: boolean) => {
       if (!data) return;
@@ -241,18 +242,18 @@ export default function Player() {
   useEffect(() => {
     const onUnload = () => save();
     const onVis = () => {
-      if (document.visibilityState === "hidden") save(); // mobile não dispara beforeunload
+      if (document.visibilityState === "hidden") save(); // mobile does not fire beforeunload
     };
     window.addEventListener("beforeunload", onUnload);
     document.addEventListener("visibilitychange", onVis);
     return () => {
       window.removeEventListener("beforeunload", onUnload);
       document.removeEventListener("visibilitychange", onVis);
-      save(); // salva ao sair da página/trocar de aula (usa lastPos, o <video> já se foi)
+      save(); // save when leaving the page/switching lessons (uses lastPos, the <video> is gone)
     };
   }, [save]);
 
-  // ---- troca de modo de stream (fallback, compat, seek do remux) ----
+  // ---- stream mode switch (fallback, compat mode, remux seek) ----
   const switchMode = (m: StreamMode, at: number) => {
     setFatal(null);
     setBuffered(0);
@@ -269,18 +270,18 @@ export default function Player() {
     setReloadKey((k) => k + 1);
   };
 
-  // erro de reprodução: tenta o próximo modo (direct -> remux -> transcode)
+  // playback error: try the next mode (direct -> remux -> transcode)
   const onVideoError = () => {
     const code = videoRef.current?.error?.code ?? 0;
-    if (code === 1 || !data) return; // 1 = abort (troca de src, não é erro real)
+    if (code === 1 || !data) return; // 1 = abort (src swap, not a real error)
     setWaiting(false);
     setPlaying(false);
     if (mode === "direct") switchMode("remux", lastPos.current);
     else if (mode === "remux") switchMode("transcode", lastPos.current);
-    else setFatal("Não foi possível reproduzir este vídeo, nem recodificando. Verifique o ffmpeg no servidor.");
+    else setFatal("This video could not be played, not even re-encoded. Check the ffmpeg install on the server.");
   };
 
-  // ---- legendas: renderização própria (overlay customizável) ----
+  // ---- subtitles: rendered by us (customizable overlay) ----
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -288,7 +289,7 @@ export default function Player() {
     let active: TextTrack | null = null;
     for (let i = 0; i < v.textTracks.length; i++) {
       const t = v.textTracks[i];
-      t.mode = "hidden"; // nunca usa o render nativo
+      t.mode = "hidden"; // never use the native renderer
       if (subLang !== null && t.label === subLang) active = t;
     }
     if (!active) return;
@@ -309,20 +310,20 @@ export default function Player() {
     return () => track.removeEventListener("cuechange", onCue);
   }, [subLang, src, data, reloadKey]);
 
-  // fecha os menus junto com os controles
+  // closes the menus along with the controls
   useEffect(() => {
     if (!showControls) setMenu(null);
   }, [showControls]);
 
-  // ---- volume / velocidade ----
-  // liga o <video> ao grafo gain -> compressor -> saída (uma vez por elemento;
-  // o <video> remonta a cada seek de remux, então religa quando o elemento muda)
+  // ---- volume / playback rate ----
+  // wires the <video> into the gain -> compressor -> output graph (once per element;
+  // the <video> remounts on every remux seek, so it is rewired when the element changes)
   const ensureBoost = (el: HTMLVideoElement) => {
     try {
       if (!audioCtxRef.current) {
         const ctx = new AudioContext();
         const gain = ctx.createGain();
-        // comprime os picos pra não estourar/distorcer com ganho alto
+        // compresses peaks so high gain does not clip/distort
         const comp = ctx.createDynamicsCompressor();
         gain.connect(comp);
         comp.connect(ctx.destination);
@@ -335,7 +336,7 @@ export default function Player() {
       }
       void audioCtxRef.current.resume();
     } catch {
-      boostFailedRef.current = true; // Web Audio indisponível: volume fica limitado a 100%
+      boostFailedRef.current = true; // Web Audio unavailable: volume stays capped at 100%
     }
   };
 
@@ -351,7 +352,7 @@ export default function Player() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [volume, src]);
 
-  // fecha o AudioContext ao sair do player
+  // closes the AudioContext when leaving the player
   useEffect(
     () => () => {
       void audioCtxRef.current?.close();
@@ -372,7 +373,7 @@ export default function Player() {
     }
   };
 
-  // ---- controles somem após inatividade (não com menu ou gaveta de notas abertos) ----
+  // ---- controls fade out after inactivity (not while a menu or the notes drawer is open) ----
   const poke = () => {
     setShowControls(true);
     clearTimeout(hideTimer.current);
@@ -401,7 +402,7 @@ export default function Player() {
   };
 
   const markDoneLocal = (value: boolean) => {
-    // atualiza o ✓ na sidebar e o botão sem esperar refetch
+    // updates the ✓ in the sidebar and the button without waiting for a refetch
     setData((d) => (d ? { ...d, completed: value ? 1 : 0 } : d));
     setCourse((c) =>
       c
@@ -427,7 +428,7 @@ export default function Player() {
     if (!data) return;
     void saveProgress(data.id, duration || effTime, true);
     markDoneLocal(true);
-    if (autoNext && data.next) navigate(`/aula/${data.next.id}`);
+    if (autoNext && data.next) navigate(`/lesson/${data.next.id}`);
   };
 
   const setCompatMode = (on: boolean) => {
@@ -444,7 +445,7 @@ export default function Player() {
     else localStorage.removeItem(SUB_PREF_KEY);
   };
 
-  // ---- teclado ----
+  // ---- keyboard ----
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (
@@ -481,8 +482,8 @@ export default function Player() {
     else void wrapRef.current?.requestFullscreen();
   };
 
-  if (error) return <div className="page center-msg">Erro ao carregar: {error}</div>;
-  if (!data) return <div className="page center-msg">Carregando...</div>;
+  if (error) return <div className="page center-msg">Failed to load: {error}</div>;
+  if (!data) return <div className="page center-msg">Loading...</div>;
 
   const totalLessons = course ? course.sections.reduce((n, s) => n + s.lessons.length, 0) : 0;
 
@@ -510,23 +511,23 @@ export default function Player() {
   return (
     <div className="player-page">
       <div className="player-topbar">
-        <Link to={`/curso/${data.course.id}`} className="back-link">
-          ← Voltar para o curso
+        <Link to={`/course/${data.course.id}`} className="back-link">
+          ← Back to course
         </Link>
         <div className="topbar-nav">
           <button
             className="round-btn"
-            onClick={() => data.prev && navigate(`/aula/${data.prev.id}`)}
+            onClick={() => data.prev && navigate(`/lesson/${data.prev.id}`)}
             disabled={!data.prev}
-            title={data.prev ? `Anterior: ${data.prev.title}` : "Primeira aula"}
+            title={data.prev ? `Previous: ${data.prev.title}` : "First lesson"}
           >
             <IconChevronLeft size={18} />
           </button>
           <button
             className="round-btn"
-            onClick={() => data.next && navigate(`/aula/${data.next.id}`)}
+            onClick={() => data.next && navigate(`/lesson/${data.next.id}`)}
             disabled={!data.next}
-            title={data.next ? `Próxima: ${data.next.title}` : "Última aula"}
+            title={data.next ? `Next: ${data.next.title}` : "Last lesson"}
           >
             <IconChevronRight size={18} />
           </button>
@@ -534,17 +535,17 @@ export default function Player() {
       </div>
 
       <div className="player-layout">
-        {/* ---- coluna esquerda: título + player + materiais ---- */}
+        {/* ---- left column: title + player + materials ---- */}
         <div className="player-main">
           <div className="player-title-row">
             <h1 className="player-title">{data.title}</h1>
             <button
               className={data.completed ? "btn-watched active" : "btn-watched"}
               onClick={toggleWatched}
-              title={data.completed ? "Marcar como não vista" : "Marcar como vista"}
+              title={data.completed ? "Mark as unwatched" : "Mark as watched"}
             >
               <IconCheck size={14} />
-              {data.completed ? "Aula vista" : "Marcar como vista"}
+              {data.completed ? "Watched" : "Mark as watched"}
             </button>
           </div>
 
@@ -564,7 +565,7 @@ export default function Player() {
               onDoubleClick={toggleFullscreen}
               onPlay={() => {
                 setPlaying(true);
-                save(); // garante a linha no progresso logo no primeiro play
+                save(); // makes sure a progress row exists right after the first play
                 poke();
               }}
               onPause={() => {
@@ -615,7 +616,7 @@ export default function Player() {
                     switchMode(compat ? "transcode" : data.directPlay ? "direct" : "remux", lastPos.current)
                   }
                 >
-                  Tentar novamente
+                  Try again
                 </button>
               </div>
             )}
@@ -676,7 +677,7 @@ export default function Player() {
                         key={n.id}
                         className="note-marker"
                         style={{ left: `${(n.timeSec! / duration) * 100}%` }}
-                        // sem isso o pointer capture da seekbar engole o clique como drag-seek
+                        // without this the seekbar pointer capture swallows the click as a drag-seek
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -694,7 +695,7 @@ export default function Player() {
                             <span className="note-marker-text">
                               {n.text.trim()
                                 ? n.text.slice(0, 90) + (n.text.length > 90 ? "…" : "")
-                                : "(desenho)"}
+                                : "(drawing)"}
                             </span>
                           </div>
                         )}
@@ -727,23 +728,23 @@ export default function Player() {
               </div>
               <div className="controls-row">
                 <div className="controls-left">
-                  <button onClick={() => data.prev && navigate(`/aula/${data.prev.id}`)} disabled={!data.prev} title="Aula anterior">
+                  <button onClick={() => data.prev && navigate(`/lesson/${data.prev.id}`)} disabled={!data.prev} title="Previous lesson">
                     <IconSkipPrev size={19} />
                   </button>
-                  <button className="play-btn" onClick={togglePlay} title={playing ? "Pausar (espaço)" : "Reproduzir (espaço)"}>
+                  <button className="play-btn" onClick={togglePlay} title={playing ? "Pause (space)" : "Play (space)"}>
                     {playing ? <IconPause size={24} /> : <IconPlay size={24} />}
                   </button>
-                  <button onClick={() => data.next && navigate(`/aula/${data.next.id}`)} disabled={!data.next} title="Próxima aula">
+                  <button onClick={() => data.next && navigate(`/lesson/${data.next.id}`)} disabled={!data.next} title="Next lesson">
                     <IconSkipNext size={19} />
                   </button>
-                  <button onClick={() => seek(effTime - 10)} title="Voltar 10s (←)">
+                  <button onClick={() => seek(effTime - 10)} title="Back 10s (←)">
                     <IconRewind10 size={21} />
                   </button>
-                  <button onClick={() => seek(effTime + 10)} title="Avançar 10s (→)">
+                  <button onClick={() => seek(effTime + 10)} title="Forward 10s (→)">
                     <IconForward10 size={21} />
                   </button>
                   <div className="ctrl-volume">
-                    <button onClick={toggleMute} title={volume === 0 ? "Ativar som (m)" : "Mudo (m)"}>
+                    <button onClick={toggleMute} title={volume === 0 ? "Unmute (m)" : "Mute (m)"}>
                       {volume === 0 ? <IconVolumeMute size={20} /> : <IconVolume size={20} />}
                     </button>
                     <input
@@ -774,16 +775,16 @@ export default function Player() {
                       <button
                         className={subLang ? "cc-on" : menu === "cc" || menu === "substyle" ? "active" : undefined}
                         onClick={() => setMenu(menu === "cc" || menu === "substyle" ? null : "cc")}
-                        title="Legendas"
+                        title="Subtitles"
                       >
                         <IconCC size={20} />
                       </button>
                       {menu === "cc" && (
                         <div className="menu">
-                          <div className="menu-label">Legendas</div>
+                          <div className="menu-label">Subtitles</div>
                           <button className="menu-item" onClick={() => chooseLang(null)}>
                             <span className="mi-check">{subLang === null && <IconCheck size={14} />}</span>
-                            Sem legenda
+                            Off
                           </button>
                           {data.subtitles.map((s) => (
                             <button key={s.id} className="menu-item" onClick={() => chooseLang(s.lang)}>
@@ -796,7 +797,7 @@ export default function Player() {
                             <span className="mi-check">
                               <IconTypography size={15} />
                             </span>
-                            Estilo da legenda
+                            Subtitle style
                             <span className="mi-arrow">
                               <IconChevronRight size={13} />
                             </span>
@@ -806,10 +807,10 @@ export default function Player() {
                       {menu === "substyle" && (
                         <div className="menu sub-panel">
                           <button className="menu-item menu-back" onClick={() => setMenu("cc")}>
-                            <IconChevronLeft size={14} /> Estilo da legenda
+                            <IconChevronLeft size={14} /> Subtitle style
                           </button>
                           <label className="sub-panel-row">
-                            <span>Tamanho</span>
+                            <span>Size</span>
                             <input
                               type="range"
                               min={14}
@@ -821,7 +822,7 @@ export default function Player() {
                             <b>{subStyle.size}</b>
                           </label>
                           <div className="sub-panel-row">
-                            <span>Cor</span>
+                            <span>Color</span>
                             <span className="sub-swatches">
                               {SUB_COLORS.map((c) => (
                                 <button
@@ -835,7 +836,7 @@ export default function Player() {
                             </span>
                           </div>
                           <label className="sub-panel-row">
-                            <span>Fundo</span>
+                            <span>Background</span>
                             <input
                               type="range"
                               min={0}
@@ -850,12 +851,12 @@ export default function Player() {
                             className="menu-item"
                             onClick={() => updateSubStyle({ outline: !subStyle.outline })}
                           >
-                            <span className="menu-item-text">Contorno</span>
+                            <span className="menu-item-text">Outline</span>
                             <span className={subStyle.outline ? "switch on" : "switch"}>
                               <span className="switch-knob" />
                             </span>
                           </button>
-                          <div className="sub-panel-note">Vale para todos os cursos</div>
+                          <div className="sub-panel-note">Applies to every course</div>
                         </div>
                       )}
                     </div>
@@ -864,13 +865,13 @@ export default function Player() {
                     <button
                       className={menu === "settings" ? "active" : undefined}
                       onClick={() => setMenu(menu === "settings" ? null : "settings")}
-                      title="Configurações"
+                      title="Settings"
                     >
                       <IconSettings size={20} />
                     </button>
                     {menu === "settings" && (
                       <div className="menu">
-                        <div className="menu-label">Velocidade</div>
+                        <div className="menu-label">Speed</div>
                         <div className="rate-row">
                           {RATES.map((r) => (
                             <button
@@ -891,15 +892,15 @@ export default function Player() {
                             localStorage.setItem(AUTONEXT_KEY, v ? "1" : "0");
                           }}
                         >
-                          <span className="menu-item-text">Próxima aula automática</span>
+                          <span className="menu-item-text">Autoplay next lesson</span>
                           <span className={autoNext ? "switch on" : "switch"}>
                             <span className="switch-knob" />
                           </span>
                         </button>
                         <button className="menu-item" onClick={() => setCompatMode(!compat)}>
                           <span className="menu-item-text">
-                            Modo compatibilidade
-                            <small>Recodifica o vídeo — use se travar ou ficar sem imagem</small>
+                            Compatibility mode
+                            <small>Re-encodes the video — use it if playback stalls or shows no picture</small>
                           </span>
                           <span className={compat ? "switch on" : "switch"}>
                             <span className="switch-knob" />
@@ -914,18 +915,18 @@ export default function Player() {
                       e.stopPropagation();
                       setNotesDrawer((v) => !v);
                     }}
-                    title="Anotações (n)"
+                    title="Notes (n)"
                   >
                     <IconNote size={19} />
                   </button>
-                  <button onClick={toggleFullscreen} title="Tela cheia (f)">
+                  <button onClick={toggleFullscreen} title="Fullscreen (f)">
                     <IconFullscreen size={19} />
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* gaveta de anotações: dentro do wrapper para funcionar em fullscreen */}
+            {/* notes drawer: lives inside the wrapper so it works in fullscreen */}
             {notesDrawer && (
               <div
                 className="notes-drawer"
@@ -934,8 +935,8 @@ export default function Player() {
                 onPointerDown={(e) => e.stopPropagation()}
               >
                 <div className="notes-drawer-head">
-                  <span>Anotações</span>
-                  <button className="note-tool" onClick={() => setNotesDrawer(false)} title="Fechar">
+                  <span>Notes</span>
+                  <button className="note-tool" onClick={() => setNotesDrawer(false)} title="Close">
                     <IconX size={15} />
                   </button>
                 </div>
@@ -955,28 +956,28 @@ export default function Player() {
             )}
           </div>
 
-          {/* ---- materiais embaixo do player ---- */}
-          {course && <Materials materials={course.materials} title="Material do curso" />}
+          {/* ---- materials below the player ---- */}
+          {course && <Materials materials={course.materials} title="Course materials" />}
         </div>
 
-        {/* ---- coluna direita: aulas do curso ---- */}
+        {/* ---- right column: course lessons ---- */}
         <aside className="player-sidebar">
           <div className="sidebar-header">
             <div className="sidebar-course">{data.course.title}</div>
-            {totalLessons > 0 && <div className="sidebar-count">{totalLessons} aulas</div>}
+            {totalLessons > 0 && <div className="sidebar-count">{totalLessons} lessons</div>}
           </div>
           <div className="sidebar-tabs">
             <button
               className={sidebarTab === "lessons" ? "sidebar-tab active" : "sidebar-tab"}
               onClick={() => setSidebarTab("lessons")}
             >
-              Aulas
+              Lessons
             </button>
             <button
               className={sidebarTab === "notes" ? "sidebar-tab active" : "sidebar-tab"}
               onClick={() => setSidebarTab("notes")}
             >
-              Notas{notes.length > 0 ? ` (${notes.length})` : ""}
+              Notes{notes.length > 0 ? ` (${notes.length})` : ""}
             </button>
           </div>
           {sidebarTab === "notes" && (
@@ -1004,7 +1005,7 @@ export default function Player() {
                     return (
                       <li key={l.id}>
                         <Link
-                          to={`/aula/${l.id}`}
+                          to={`/lesson/${l.id}`}
                           className={isCurrent ? "sidebar-lesson current" : "sidebar-lesson"}
                         >
                           <span className={l.completed ? "lesson-icon done" : "lesson-icon"}>
@@ -1036,7 +1037,7 @@ export default function Player() {
               return (
                 <details key={i} className="sidebar-section" open={containsCurrent}>
                   <summary>
-                    <span className="sidebar-section-title">{section.title ?? "Aulas"}</span>
+                    <span className="sidebar-section-title">{section.title ?? "Lessons"}</span>
                     <span className="section-meta">
                       {section.lessons.filter((l) => l.completed).length}/{section.lessons.length}
                     </span>

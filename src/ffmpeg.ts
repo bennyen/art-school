@@ -4,7 +4,7 @@ import path from "node:path";
 import { config } from "./config.js";
 import { db } from "./db.js";
 
-/** Retorna a duração do vídeo em segundos via ffprobe (null se indisponível) */
+/** Returns the video duration in seconds via ffprobe (null when unavailable) */
 export function probeDuration(absPath: string): Promise<number | null> {
   return new Promise((resolve) => {
     execFile(
@@ -21,7 +21,7 @@ export function probeDuration(absPath: string): Promise<number | null> {
 }
 
 let filling = false;
-/** Preenche durações faltantes em segundo plano (não bloqueia o servidor) */
+/** Fills in missing durations in the background (does not block the server) */
 export async function fillMissingDurations(): Promise<void> {
   if (filling) return;
   filling = true;
@@ -30,19 +30,19 @@ export async function fillMissingDurations(): Promise<void> {
       .prepare("SELECT id, rel_path FROM lessons WHERE duration IS NULL")
       .all() as unknown as { id: string; rel_path: string }[];
     if (rows.length === 0) return;
-    console.log(`[ffprobe] calculando duração de ${rows.length} aulas...`);
+    console.log(`[ffprobe] computing duration for ${rows.length} lessons...`);
     const update = db.prepare("UPDATE lessons SET duration = ? WHERE id = ?");
     for (const row of rows) {
       const dur = await probeDuration(path.join(config.coursesPath, row.rel_path));
       if (dur !== null) update.run(dur, row.id);
     }
-    console.log("[ffprobe] durações preenchidas");
+    console.log("[ffprobe] durations filled in");
   } finally {
     filling = false;
   }
 }
 
-/** Gera (e cacheia) a thumbnail do curso a partir do primeiro vídeo */
+/** Generates (and caches) the course thumbnail from its first video */
 export function generateThumb(courseId: string, videoAbs: string): Promise<string | null> {
   const thumbPath = path.join(config.dataPath, "thumbs", `${courseId}.jpg`);
   if (fs.existsSync(thumbPath)) return Promise.resolve(thumbPath);
@@ -50,7 +50,7 @@ export function generateThumb(courseId: string, videoAbs: string): Promise<strin
     execFile(
       "ffmpeg",
       [
-        "-ss", "60", // frame aos 60s costuma pular a vinheta/tela preta
+        "-ss", "60", // a frame at 60s usually skips the intro/black screen
         "-i", videoAbs,
         "-frames:v", "1",
         "-vf", "scale=640:-2",
@@ -60,7 +60,7 @@ export function generateThumb(courseId: string, videoAbs: string): Promise<strin
       { timeout: 60_000 },
       (err) => {
         if (!err && fs.existsSync(thumbPath)) return resolve(thumbPath);
-        // vídeo mais curto que 60s: tenta no início
+        // video shorter than 60s: try near the beginning
         execFile(
           "ffmpeg",
           ["-ss", "3", "-i", videoAbs, "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", "-y", thumbPath],
@@ -72,7 +72,7 @@ export function generateThumb(courseId: string, videoAbs: string): Promise<strin
   });
 }
 
-/** Largura/altura do vídeo via ffprobe (null se indisponível) */
+/** Video width/height via ffprobe (null when unavailable) */
 function probeDims(absPath: string): Promise<{ width: number; height: number } | null> {
   return new Promise((resolve) => {
     execFile(
@@ -91,16 +91,16 @@ function probeDims(absPath: string): Promise<{ width: number; height: number } |
 const execFileP = (cmd: string, args: string[], timeout: number) =>
   new Promise<boolean>((resolve) => execFile(cmd, args, { timeout }, (err) => resolve(!err)));
 
-// diretório temporário para saídas intermediárias do ffmpeg
+// temporary directory for intermediate ffmpeg output
 const tmpDir = () => {
   const dir = path.join(config.dataPath, "tmp");
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 };
 
-// ---------- thumbnails por aula ----------
+// ---------- per-lesson thumbnails ----------
 
-// semáforo: limita ffmpeg simultâneos (o browser dispara várias thumbs de uma vez)
+// semaphore: caps concurrent ffmpeg processes (the browser asks for many thumbs at once)
 const THUMB_SLOTS = 3;
 let thumbActive = 0;
 const thumbWaiting: (() => void)[] = [];
@@ -117,7 +117,7 @@ const thumbRelease = () => {
   else thumbActive--;
 };
 
-/** Gera (e cacheia na db) a thumbnail de uma aula; retorna o JPEG ou null */
+/** Generates (and caches in the database) a lesson thumbnail; returns the JPEG or null */
 export async function getLessonThumb(lessonId: string): Promise<Uint8Array | null> {
   const cached = db.prepare("SELECT img FROM lesson_thumbs WHERE lesson_id = ?").get(lessonId) as
     | { img: Uint8Array }
@@ -126,7 +126,7 @@ export async function getLessonThumb(lessonId: string): Promise<Uint8Array | nul
 
   await thumbAcquire();
   try {
-    // outra request pode ter gerado enquanto esperava o slot
+    // another request may have generated it while this one waited for a slot
     const again = db.prepare("SELECT img FROM lesson_thumbs WHERE lesson_id = ?").get(lessonId) as
       | { img: Uint8Array }
       | undefined;
@@ -139,7 +139,7 @@ export async function getLessonThumb(lessonId: string): Promise<Uint8Array | nul
     const videoAbs = path.join(config.coursesPath, lesson.rel_path);
     if (!fs.existsSync(videoAbs)) return null;
 
-    // frame a ~20% da aula (pula intro/tela preta); fallback pro início
+    // frame at ~20% of the lesson (skips intro/black screen); falls back to the start
     const at = lesson.duration ? Math.min(lesson.duration * 0.2, 120) : 30;
     const out = path.join(tmpDir(), `thumb-${lessonId}.jpg`);
     const args = (ss: number) => [
@@ -164,7 +164,7 @@ export async function getLessonThumb(lessonId: string): Promise<Uint8Array | nul
   }
 }
 
-/** Gera um frame em 640px de uma aula (para usar como banner do curso) */
+/** Grabs a 640px frame from a lesson (to be used as the course banner) */
 export async function generateFrameFromLesson(lessonId: string): Promise<Uint8Array | null> {
   const lesson = db.prepare("SELECT rel_path, duration FROM lessons WHERE id = ?").get(lessonId) as
     | { rel_path: string; duration: number | null }
@@ -192,13 +192,13 @@ export async function generateFrameFromLesson(lessonId: string): Promise<Uint8Ar
   return img;
 }
 
-// ---------- trickplay (preview da timeline) ----------
+// ---------- trickplay (timeline preview) ----------
 
 const TP_COLS = 5;
 const TP_ROWS = 5;
 const TP_WIDTH = 240;
 
-/** Gera as sprite sheets de trickplay de uma aula e salva na db */
+/** Builds the trickplay sprite sheets for a lesson and stores them in the database */
 async function generateTrickplay(lessonId: string, relPath: string, duration: number): Promise<void> {
   const videoAbs = path.join(config.coursesPath, relPath);
   const markFailed = (): void => {
@@ -212,14 +212,14 @@ async function generateTrickplay(lessonId: string, relPath: string, duration: nu
   const dims = await probeDims(videoAbs);
   if (!dims) return markFailed();
 
-  // intervalo dinâmico: mira ~300 frames por aula (5s..30s)
+  // dynamic interval: aims for ~300 frames per lesson (5s..30s)
   const interval = Math.min(30, Math.max(5, Math.ceil(duration / 300)));
   const tileH = Math.max(2, 2 * Math.round((TP_WIDTH * dims.height) / dims.width / 2));
   const frames = Math.max(1, Math.floor(duration / interval));
 
   const dir = fs.mkdtempSync(path.join(tmpDir(), "tp-"));
   try {
-    // -skip_frame nokey: decodifica só keyframes (bem mais rápido; fps duplica o frame mais próximo)
+    // -skip_frame nokey: decode keyframes only (much faster; fps duplicates the nearest frame)
     const ok = await execFileP(
       "ffmpeg",
       [
@@ -255,12 +255,12 @@ async function generateTrickplay(lessonId: string, relPath: string, duration: nu
 }
 
 let tpRunning = false;
-/** Gera trickplay das aulas que ainda não têm, em segundo plano */
+/** Builds trickplay for lessons that do not have it yet, in the background */
 export async function generateMissingTrickplay(): Promise<void> {
   if (tpRunning) return;
   tpRunning = true;
   try {
-    // limpa blobs de aulas que saíram do catálogo
+    // drop blobs belonging to lessons that left the catalog
     db.exec("DELETE FROM trickplay WHERE lesson_id NOT IN (SELECT id FROM lessons)");
     db.exec("DELETE FROM trickplay_sheets WHERE lesson_id NOT IN (SELECT id FROM lessons)");
     db.exec("DELETE FROM lesson_thumbs WHERE lesson_id NOT IN (SELECT id FROM lessons)");
@@ -273,18 +273,18 @@ export async function generateMissingTrickplay(): Promise<void> {
       )
       .all() as unknown as { id: string; rel_path: string; duration: number }[];
     if (rows.length === 0) return;
-    console.log(`[trickplay] gerando preview de timeline de ${rows.length} aulas...`);
+    console.log(`[trickplay] building timeline previews for ${rows.length} lessons...`);
     let done = 0;
     for (const row of rows) {
       try {
         await generateTrickplay(row.id, row.rel_path, row.duration);
       } catch (err) {
-        console.error(`[trickplay] falhou em ${row.rel_path}:`, err);
+        console.error(`[trickplay] failed on ${row.rel_path}:`, err);
       }
       done++;
       if (done % 25 === 0) console.log(`[trickplay] ${done}/${rows.length}`);
     }
-    console.log(`[trickplay] concluído (${done} aulas)`);
+    console.log(`[trickplay] finished (${done} lessons)`);
   } finally {
     tpRunning = false;
   }
@@ -297,12 +297,12 @@ export interface MediaCodecs {
   audio: string | null;
 }
 
-// codecs de vídeo que o browser toca dentro de mp4 sem recodificar
+// video codecs the browser can play inside mp4 without re-encoding
 const COPY_VIDEO = new Set(["h264", "hevc", "vp9", "av1"]);
 
 const codecsCache = new Map<string, MediaCodecs>();
 
-/** Codecs de vídeo/áudio do arquivo via ffprobe (com cache em memória) */
+/** Video/audio codecs of a file via ffprobe (cached in memory) */
 export function probeCodecs(absPath: string): Promise<MediaCodecs> {
   const cached = codecsCache.get(absPath);
   if (cached) return Promise.resolve(cached);
@@ -330,26 +330,27 @@ export function probeCodecs(absPath: string): Promise<MediaCodecs> {
 }
 
 /**
- * Stream mp4 fragmentado para o browser.
- * Copia o vídeo quando o codec é compatível (h264/hevc/vp9/av1); senão recodifica
- * para h264. Áudio aac é copiado; o resto vira aac. Legendas embutidas, attachments
- * e trilhas extras são descartados — eles quebram o mux mp4 (era o que travava mkv/mov).
+ * Streams fragmented mp4 to the browser.
+ * Copies the video stream when the codec is compatible (h264/hevc/vp9/av1),
+ * otherwise re-encodes to h264. AAC audio is copied, anything else becomes AAC.
+ * Embedded subtitles, attachments and extra tracks are dropped — they break the
+ * mp4 muxer (this was what used to stall mkv/mov playback).
  */
 export function remuxStream(absPath: string, startSec: number, transcode: boolean, codecs: MediaCodecs) {
   const args = ["-hide_banner", "-loglevel", "error"];
   if (startSec > 0) args.push("-ss", String(startSec));
   args.push("-i", absPath);
-  // só a primeira trilha de vídeo/áudio; sem legendas/attachments/dados
+  // first video/audio track only; no subtitles/attachments/data
   args.push("-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn", "-map_metadata", "-1");
 
   const copyVideo = !transcode && codecs.video !== null && COPY_VIDEO.has(codecs.video);
   if (copyVideo) {
     args.push("-c:v", "copy");
-    if (codecs.video === "hevc") args.push("-tag:v", "hvc1"); // sem a tag o browser não reconhece hevc
+    if (codecs.video === "hevc") args.push("-tag:v", "hvc1"); // without the tag browsers do not recognize hevc
   } else {
     args.push(
       "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-      "-pix_fmt", "yuv420p", // fontes 10-bit/4:2:2 (comum em .mov/ProRes) não tocam no browser sem isso
+      "-pix_fmt", "yuv420p", // 10-bit/4:2:2 sources (common in .mov/ProRes) will not play without this
       "-g", "60"
     );
   }
@@ -362,14 +363,14 @@ export function remuxStream(absPath: string, startSec: number, transcode: boolea
     "-f", "mp4", "pipe:1"
   );
   const ff = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
-  // loga o motivo quando o ffmpeg morre sozinho (kill por desconexão do cliente sai com code null)
+  // log why ffmpeg died on its own (a kill from client disconnect exits with code null)
   let stderr = "";
   ff.stderr.on("data", (d: Buffer) => {
     if (stderr.length < 4000) stderr += d.toString();
   });
   ff.on("close", (code) => {
     if (code && code !== 0)
-      console.error(`[stream] ffmpeg falhou (${path.basename(absPath)}):`, stderr.trim().slice(0, 500));
+      console.error(`[stream] ffmpeg failed (${path.basename(absPath)}):`, stderr.trim().slice(0, 500));
   });
   return ff;
 }

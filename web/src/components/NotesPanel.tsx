@@ -16,21 +16,21 @@ interface NotesPanelProps {
   courseId: string;
   notes: NoteRow[];
   onRefresh: () => void;
-  /** presentes só no player */
+  /** only present in the player */
   currentLessonId?: string;
   getCurrentTime?: () => number;
   onSeek?: (t: number) => void;
   onOpenEditor?: () => void;
-  /** layout compacto (sidebar/drawer do player) vs grade (página do curso) */
+  /** compact layout (player sidebar/drawer) vs grid (course page) */
   compact?: boolean;
-  /** abrir uma nota específica (vinda do marcador da timeline) */
+  /** open a specific note (triggered by a timeline marker) */
   openNoteId?: string | null;
   onOpenNoteHandled?: () => void;
 }
 
-// nota sendo editada/criada
+// note being created/edited
 interface OpenNote {
-  note: NoteRow | null; // null = nova
+  note: NoteRow | null; // null = new
   lessonId: string | null;
   timeSec: number | null;
   readOnly: boolean;
@@ -52,7 +52,7 @@ export default function NotesPanel({
   const [open, setOpen] = useState<OpenNote | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // abre nota pedida pelo marcador da timeline
+  // opens the note requested by a timeline marker
   useEffect(() => {
     if (!openNoteId) return;
     const n = notes.find((x) => x.id === openNoteId);
@@ -62,7 +62,7 @@ export default function NotesPanel({
   }, [openNoteId, notes]);
 
   const openNote = (n: NoteRow) => {
-    // no player, nota de outra aula abre só pra leitura (botão "Ir para a aula" à parte)
+    // in the player, a note from another lesson opens read-only ("Go to the lesson" is separate)
     const readOnly = Boolean(currentLessonId && n.lessonId && n.lessonId !== currentLessonId);
     setOpen({ note: n, lessonId: n.lessonId, timeSec: n.timeSec, readOnly });
   };
@@ -103,7 +103,7 @@ export default function NotesPanel({
 
   const handleDelete = async () => {
     if (!open?.note) return;
-    if (!confirm("Apagar esta anotação?")) return;
+    if (!confirm("Delete this note?")) return;
     await deleteNote(open.note.id);
     setOpen(null);
     onRefresh();
@@ -115,18 +115,18 @@ export default function NotesPanel({
       onSeek(n.timeSec);
       setOpen(null);
     } else {
-      navigate(`/aula/${n.lessonId}?t=${Math.floor(n.timeSec)}`);
+      navigate(`/lesson/${n.lessonId}?t=${Math.floor(n.timeSec)}`);
     }
   };
 
   const heading = (o: OpenNote): string => {
-    if (!o.lessonId) return "Nota do curso";
+    if (!o.lessonId) return "Course note";
     const title = o.note?.lessonTitle ?? notes.find((n) => n.lessonId === o.lessonId)?.lessonTitle;
-    if (o.note && !o.note.lessonTitle) return "(aula removida)";
-    return title ?? (o.lessonId === currentLessonId ? "Esta aula" : "Aula");
+    if (o.note && !o.note.lessonTitle) return "(lesson removed)";
+    return title ?? (o.lessonId === currentLessonId ? "This lesson" : "Lesson");
   };
 
-  // agrupa mantendo a ordem da API: gerais primeiro, depois por aula
+  // groups while keeping the API order: course-wide first, then per lesson
   const groups: { key: string; title: string; items: NoteRow[] }[] = [];
   for (const n of notes) {
     const key = n.lessonId ?? "__course__";
@@ -135,7 +135,7 @@ export default function NotesPanel({
     else
       groups.push({
         key,
-        title: n.lessonId ? n.lessonTitle ?? "(aula removida)" : "Notas do curso",
+        title: n.lessonId ? n.lessonTitle ?? "(lesson removed)" : "Course notes",
         items: [n]
       });
   }
@@ -149,7 +149,7 @@ export default function NotesPanel({
             o.note ?? ({ lessonId: o.lessonId, timeSec: o.timeSec } as NoteRow)
           )
         }
-        title={o.lessonId === currentLessonId ? "Ir para o momento" : "Ir para a aula"}
+        title={o.lessonId === currentLessonId ? "Jump to this moment" : "Go to the lesson"}
       >
         <IconPlayOutline size={15} />
       </button>
@@ -187,16 +187,16 @@ export default function NotesPanel({
             {currentLessonId && getCurrentTime && (
               <button className="btn-secondary notes-add" onClick={newNoteHere}>
                 <IconNote size={15} />
-                Nota neste momento
+                Note at this moment
               </button>
             )}
             <button className="btn-secondary notes-add" onClick={newCourseNote}>
               <IconPencil size={15} />
-              Nota do curso
+              Course note
             </button>
           </div>
 
-          {notes.length === 0 && <p className="notes-empty">Nenhuma anotação ainda.</p>}
+          {notes.length === 0 && <p className="notes-empty">No notes yet.</p>}
 
           <div className="notes-list">
             {groups.map((g) => (
@@ -212,7 +212,7 @@ export default function NotesPanel({
                       {n.timeSec != null && (
                         <span
                           className="note-card-time"
-                          title="Assistir deste momento"
+                          title="Watch from this moment"
                           onClick={(e) => {
                             e.stopPropagation();
                             goToMoment(n);
@@ -223,13 +223,13 @@ export default function NotesPanel({
                         </span>
                       )}
                       {n.hasDrawing && (
-                        <span className="note-card-badge" title="Tem desenho">
+                        <span className="note-card-badge" title="Has a drawing">
                           <IconPencil size={11} />
                         </span>
                       )}
                     </span>
                     <span className="note-card-text">
-                      {n.text.trim() ? n.text : n.hasDrawing ? "(desenho)" : "(vazia)"}
+                      {n.text.trim() ? n.text : n.hasDrawing ? "(drawing)" : "(empty)"}
                     </span>
                   </button>
                 ))}

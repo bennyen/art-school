@@ -13,7 +13,7 @@ const app = express();
 app.use(express.json());
 app.use("/api", api);
 
-// Em produção, serve o SPA compilado (web/dist)
+// In production, serve the compiled SPA (web/dist)
 const webDist = path.resolve(__dirname, "..", "web", "dist");
 if (fs.existsSync(webDist)) {
   app.use(express.static(webDist));
@@ -24,9 +24,9 @@ if (fs.existsSync(webDist)) {
 }
 
 app.listen(config.port, () => {
-  console.log(`🎨 Art School rodando em http://localhost:${config.port}`);
-  console.log(`   Cursos: ${config.coursesPath}`);
-  console.log(`   Dados:  ${config.dataPath}`);
+  console.log(`🎨 Art School running at http://localhost:${config.port}`);
+  console.log(`   Courses: ${config.coursesPath}`);
+  console.log(`   Data:    ${config.dataPath}`);
   scanLibrary();
   void fillMissingDurations().then(() => generateMissingTrickplay());
 });

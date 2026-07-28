@@ -27,7 +27,7 @@ export default function EditCourse({ course, onClose, onSaved }: Props) {
   const [teacher, setTeacher] = useState(course.teacher ?? "");
   const [categories, setCategories] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  // escolha de imagem: null = manter atual; {lessonId} = frame sugerido; {file} = upload; "remove" = limpar
+  // image choice: null = keep current; {lessonId} = suggested frame; {file} = upload; "remove" = clear
   const [pickedLesson, setPickedLesson] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -73,13 +73,13 @@ export default function EditCourse({ course, onClose, onSaved }: Props) {
     setError(null);
     try {
       const res = await saveCourseMeta(course.id, { title, category, teacher });
-      if (!res.ok) throw new Error("Falha ao salvar metadados");
+      if (!res.ok) throw new Error("Could not save the metadata");
       if (file) {
         const r = await uploadCourseBanner(course.id, file);
-        if (!r.ok) throw new Error("Falha ao enviar a imagem");
+        if (!r.ok) throw new Error("Could not upload the image");
       } else if (pickedLesson) {
         const r = await setBannerFromLesson(course.id, pickedLesson);
-        if (!r.ok) throw new Error("Falha ao gerar o frame");
+        if (!r.ok) throw new Error("Could not grab the frame");
       } else if (removeBanner) {
         await clearCourseBanner(course.id);
       }
@@ -94,25 +94,25 @@ export default function EditCourse({ course, onClose, onSaved }: Props) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal edit-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Editar curso</h2>
-          <button className="modal-close" onClick={onClose} title="Fechar">
+          <h2>Edit course</h2>
+          <button className="modal-close" onClick={onClose} title="Close">
             <IconX size={18} />
           </button>
         </div>
 
         <label className="field">
-          <span>Nome</span>
+          <span>Name</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={course.folderTitle} />
         </label>
 
         <div className="field-row">
           <label className="field">
-            <span>Categoria</span>
+            <span>Category</span>
             <input
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               list="cat-list"
-              placeholder={course.folderCategory ?? "ex.: pintura, animação"}
+              placeholder={course.folderCategory ?? "e.g. painting, animation"}
             />
             <datalist id="cat-list">
               {categories.map((c) => (
@@ -121,13 +121,13 @@ export default function EditCourse({ course, onClose, onSaved }: Props) {
             </datalist>
           </label>
           <label className="field">
-            <span>Professor</span>
-            <input value={teacher} onChange={(e) => setTeacher(e.target.value)} placeholder="ex.: Jongha Yoon" />
+            <span>Instructor</span>
+            <input value={teacher} onChange={(e) => setTeacher(e.target.value)} placeholder="e.g. Jongha Yoon" />
           </label>
         </div>
 
         <div className="field">
-          <span>Imagem do curso</span>
+          <span>Course image</span>
           <div className="banner-pick-row">
             <div className={removeBanner ? "banner-current removing" : "banner-current"}>
               {filePreview ? (
@@ -138,12 +138,12 @@ export default function EditCourse({ course, onClose, onSaved }: Props) {
                 <img src={`/api/thumb/${course.id}?v=edit`} alt="" />
               )}
               <span className="banner-current-label">
-                {filePreview ? "Upload" : pickedLesson ? "Frame escolhido" : removeBanner ? "Será removida" : "Atual"}
+                {filePreview ? "Upload" : pickedLesson ? "Chosen frame" : removeBanner ? "Will be removed" : "Current"}
               </span>
             </div>
             <div className="banner-actions">
               <button className="btn-secondary" onClick={() => fileRef.current?.click()}>
-                <IconUpload size={15} /> Enviar imagem
+                <IconUpload size={15} /> Upload image
               </button>
               <input
                 ref={fileRef}
@@ -155,7 +155,7 @@ export default function EditCourse({ course, onClose, onSaved }: Props) {
               {course.hasCustomBanner && !file && !pickedLesson && (
                 <label className="remove-banner">
                   <input type="checkbox" checked={removeBanner} onChange={(e) => setRemoveBanner(e.target.checked)} />
-                  Remover imagem personalizada
+                  Remove custom image
                 </label>
               )}
             </div>
@@ -163,7 +163,7 @@ export default function EditCourse({ course, onClose, onSaved }: Props) {
 
           {suggestions.length > 0 && (
             <>
-              <span className="suggest-label">Ou escolha um frame das aulas:</span>
+              <span className="suggest-label">Or pick a frame from the lessons:</span>
               <div className="suggest-grid">
                 {suggestions.map((s) => (
                   <button
@@ -184,10 +184,10 @@ export default function EditCourse({ course, onClose, onSaved }: Props) {
 
         <div className="modal-foot">
           <button className="btn-secondary" onClick={onClose} disabled={saving}>
-            Cancelar
+            Cancel
           </button>
           <button className="btn-primary" onClick={save} disabled={saving || title.trim() === ""}>
-            {saving ? "Salvando..." : "Salvar"}
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>

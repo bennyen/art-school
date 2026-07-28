@@ -5,7 +5,7 @@ import { config } from "./config.js";
 export const db = new DatabaseSync(path.join(config.dataPath, "artschool.db"));
 db.exec("PRAGMA journal_mode = WAL");
 
-/** Executa fn dentro de uma transação */
+/** Runs fn inside a transaction */
 export function transaction(fn: () => void): void {
   db.exec("BEGIN");
   try {
@@ -54,8 +54,9 @@ CREATE TABLE IF NOT EXISTS subtitles (
   rel_path  TEXT NOT NULL
 );
 
--- Metadados editados pelo usuário: como o progress, NUNCA é apagado no rescan.
--- Campos NULL caem no valor derivado da pasta; banner é imagem customizada (upload ou frame escolhido)
+-- User-edited metadata: like progress, it is NEVER wiped on rescan.
+-- NULL fields fall back to the value derived from the folder name; banner is a
+-- custom image (uploaded file or a frame picked from a lesson).
 CREATE TABLE IF NOT EXISTS course_meta (
   course_id TEXT PRIMARY KEY,
   title     TEXT,
@@ -65,14 +66,14 @@ CREATE TABLE IF NOT EXISTS course_meta (
   banner_mime TEXT
 );
 
--- Thumbnail de cada aula (JPEG pequeno, gerado sob demanda)
+-- Per-lesson thumbnail (small JPEG, generated on demand)
 CREATE TABLE IF NOT EXISTS lesson_thumbs (
   lesson_id TEXT PRIMARY KEY,
   img       BLOB NOT NULL
 );
 
--- Trickplay: preview da timeline (sprite sheets JPEG bem comprimidas)
--- frames = 0 marca "falhou/indisponível" para não tentar de novo a cada boot
+-- Trickplay: timeline hover preview (heavily compressed JPEG sprite sheets).
+-- frames = 0 flags "failed/unavailable" so it is not retried on every boot.
 CREATE TABLE IF NOT EXISTS trickplay (
   lesson_id  TEXT PRIMARY KEY,
   interval   REAL NOT NULL,
@@ -91,8 +92,9 @@ CREATE TABLE IF NOT EXISTS trickplay_sheets (
   PRIMARY KEY (lesson_id, idx)
 );
 
--- Progresso é persistente: nunca é apagado no rescan.
--- lesson_id = hash do caminho relativo, então sobrevive à migração para o NAS.
+-- Progress is persistent: never wiped on rescan.
+-- lesson_id = hash of the relative path, so it survives moving the library
+-- to another machine or mount point.
 CREATE TABLE IF NOT EXISTS progress (
   lesson_id    TEXT PRIMARY KEY,
   position_sec REAL NOT NULL DEFAULT 0,
@@ -100,8 +102,8 @@ CREATE TABLE IF NOT EXISTS progress (
   updated_at   TEXT NOT NULL
 );
 
--- Anotações do usuário: como o progress, NUNCA são apagadas no rescan.
--- lesson_id/time_sec NULL = nota geral do curso; drawing = PNG achatado desenhado por cima do texto.
+-- User notes: like progress, they are NEVER wiped on rescan.
+-- lesson_id/time_sec NULL = course-wide note; drawing = flattened PNG drawn over the text.
 CREATE TABLE IF NOT EXISTS notes (
   id           TEXT PRIMARY KEY,
   course_id    TEXT NOT NULL,

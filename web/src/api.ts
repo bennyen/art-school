@@ -22,7 +22,7 @@ export interface ContinueItem {
   duration: number | null;
   courseId: string;
   courseTitle: string;
-  isNext: boolean; // sugestão da próxima aula (a anterior foi concluída)
+  isNext: boolean; // suggestion for the next lesson (the previous one was completed)
 }
 
 export interface HomeData {
@@ -141,15 +141,15 @@ export function saveProgress(lessonId: string, position: number, completed?: boo
   });
 }
 
-// ---------- Anotações ----------
+// ---------- Notes ----------
 
 export interface NoteRow {
   id: string;
-  lessonId: string | null; // null = nota geral do curso
+  lessonId: string | null; // null = course-wide note
   timeSec: number | null;
   text: string;
   hasDrawing: boolean;
-  lessonTitle: string | null; // null em nota geral OU aula removida do disco
+  lessonTitle: string | null; // null on a course note OR when the lesson is gone from disk
   createdAt: string;
   updatedAt: string;
 }

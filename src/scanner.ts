@@ -7,13 +7,14 @@ import { db, transaction } from "./db.js";
 const VIDEO_EXTS = new Set([".mp4", ".mkv", ".webm", ".mov", ".m4v", ".avi"]);
 const SUBTITLE_EXTS = new Set([".srt", ".vtt"]);
 const COVER_RE = /^(cover|banner|poster|folder)\.(jpe?g|png|webp)$/i;
-// Arquivos compactados (inclusive volumes divididos tipo .001, .part1.rar, .z01)
+// Archives (including split volumes such as .001, .part1.rar, .z01)
 const ARCHIVE_RE = /(\.(rar|zip|7z|tar|gz|tgz)|\.z?\d{2,3})$/i;
-const SUBTITLE_DIR_RE = /^(subtitles?|legendas?|subs)$/i;
-// Pastas de material didático (mesmo contendo vídeos de referência, não são aulas)
-const MATERIALS_DIR_RE = /(materials?|materiais|materiels?|recursos|resources|assets|arquivos)/i;
+// Folder-name matchers accept a few languages, since course packs come named in many ways
+const SUBTITLE_DIR_RE = /^(subtitles?|subs|legendas?|sous-titres?|untertitel)$/i;
+// Course-material folders (not lessons, even when they contain reference videos)
+const MATERIALS_DIR_RE = /(materials?|materiais|materiels?|resources|recursos|assets|files|arquivos|downloads)/i;
 
-const collator = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 const naturalSort = (a: string, b: string) => collator.compare(a, b);
 
 const relId = (relPath: string) =>
@@ -42,7 +43,7 @@ const isSubtitle = (name: string) => SUBTITLE_EXTS.has(path.extname(name).toLowe
 const isArchive = (name: string) => ARCHIVE_RE.test(name);
 const baseName = (name: string) => path.basename(name, path.extname(name));
 
-/** Verifica recursivamente se um diretório contém algum vídeo */
+/** Recursively checks whether a directory holds any video */
 function containsVideo(abs: string): boolean {
   for (const e of listDir(abs)) {
     if (!e.isDir && isVideo(e.name)) return true;
@@ -51,7 +52,7 @@ function containsVideo(abs: string): boolean {
   return false;
 }
 
-/** Desce por pastas aninhadas de nível único (ex.: "Section 02/Section 02/*.mp4") */
+/** Walks down single-child folder chains (e.g. "Section 02/Section 02/*.mp4") */
 function flatten(abs: string): string {
   let current = abs;
   for (let i = 0; i < 5; i++) {
@@ -67,7 +68,7 @@ function flatten(abs: string): string {
   return current;
 }
 
-/** Lista todos os arquivos recursivamente (para materiais e vídeos de seção) */
+/** Lists every file recursively (used for materials and section videos) */
 function walkFiles(abs: string): Entry[] {
   const out: Entry[] = [];
   for (const e of listDir(abs)) {
@@ -118,7 +119,7 @@ function scanCourse(courseDir: Entry): CourseRow {
 
   const root = flatten(courseDir.abs);
   const rootEntries = listDir(root);
-  // cover.jpg pode estar na raiz original ou na raiz "achatada"
+  // cover.jpg may live in the original root or in the flattened one
   const coverEntry =
     listDir(courseDir.abs).find((e) => !e.isDir && COVER_RE.test(e.name)) ??
     rootEntries.find((e) => !e.isDir && COVER_RE.test(e.name));
@@ -126,7 +127,7 @@ function scanCourse(courseDir: Entry): CourseRow {
   const lessons: LessonRow[] = [];
   const subtitles: SubtitleRow[] = [];
   const materials: MaterialRow[] = [];
-  // basename (minúsculo) -> lessonId, para casar legendas por idioma
+  // lowercase basename -> lessonId, used to match subtitles by language
   const lessonByBase = new Map<string, string>();
   let archivesPresent = false;
 
@@ -144,7 +145,7 @@ function scanCourse(courseDir: Entry): CourseRow {
       const lessonId = lessonByBase.get(baseName(e.name).toLowerCase());
       if (!lessonId) continue;
       const rel = toRel(e.abs);
-      subtitles.push({ id: relId(rel), lessonId, lang: "Padrão", relPath: rel });
+      subtitles.push({ id: relId(rel), lessonId, lang: "Default", relPath: rel });
     }
   };
 
@@ -161,7 +162,7 @@ function scanCourse(courseDir: Entry): CourseRow {
     }
   };
 
-  // ---- classifica o conteúdo da raiz do curso ----
+  // ---- classify the contents of the course root ----
   const sectionDirs: Entry[] = [];
   const materialDirs: Entry[] = [];
   let subtitleRoot: Entry | null = null;
@@ -185,12 +186,12 @@ function scanCourse(courseDir: Entry): CourseRow {
     }
   }
 
-  // vídeos soltos na raiz = curso "plano" (sem seções)
+  // loose videos in the root = "flat" course (no sections)
   const rootVideos = rootEntries.filter((e) => !e.isDir && isVideo(e.name)).sort((a, b) => naturalSort(a.name, b.name));
   rootVideos.forEach((v, i) => addLesson(v.abs, null, -1, i));
   if (rootVideos.length > 0) addSidecarSubs(root);
 
-  // seções
+  // sections
   sectionDirs.sort((a, b) => naturalSort(a.name, b.name));
   sectionDirs.forEach((sec, sIdx) => {
     const secRoot = flatten(sec.abs);
@@ -198,15 +199,15 @@ function scanCourse(courseDir: Entry): CourseRow {
       .filter((f) => isVideo(f.name))
       .sort((a, b) => naturalSort(toRel(a.abs), toRel(b.abs)));
     videos.forEach((v, i) => addLesson(v.abs, sec.name, sIdx, i));
-    // legendas sidecar dentro da seção (em qualquer nível)
+    // sidecar subtitles inside the section (at any depth)
     const subDirs = new Set(videos.map((v) => path.dirname(v.abs)));
     for (const d of subDirs) addSidecarSubs(d);
   });
 
-  // materiais (pastas sem vídeo)
+  // materials (folders without video)
   for (const m of materialDirs) addMaterialsFromDir(m.abs, m.name);
 
-  // legendas por idioma: Subtitles/<Idioma>/<mesmo basename>.srt
+  // subtitles by language: Subtitles/<Language>/<same basename>.srt
   if (subtitleRoot) {
     for (const langDir of listDir(subtitleRoot.abs)) {
       if (!langDir.isDir) continue;
@@ -237,7 +238,7 @@ export function scanLibrary(): { courses: number; lessons: number } {
   const courseDirs = listDir(config.coursesPath).filter((e) => e.isDir);
   const courses = courseDirs.map(scanCourse);
 
-  // guarda durações já conhecidas para não rodar ffprobe de novo
+  // keep durations already known so ffprobe does not run again
   const knownDurations = new Map<string, number>(
     (db.prepare("SELECT id, duration FROM lessons WHERE duration IS NOT NULL").all() as { id: string; duration: number }[]).map(
       (r) => [r.id, r.duration]
@@ -273,6 +274,6 @@ export function scanLibrary(): { courses: number; lessons: number } {
   });
 
   const lessons = courses.reduce((acc, c) => acc + c.lessons.length, 0);
-  console.log(`[scanner] ${courses.length} cursos, ${lessons} aulas encontradas em ${config.coursesPath}`);
+  console.log(`[scanner] found ${courses.length} courses and ${lessons} lessons in ${config.coursesPath}`);
   return { courses: courses.length, lessons };
 }
