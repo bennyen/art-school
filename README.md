@@ -63,7 +63,7 @@ when you save.
 
 ## Quick start (Docker Compose)
 
-Create a `docker-compose.yml`:
+Create a `compose.yaml` (`docker-compose.yml` works too — it is the legacy name):
 
 ```yaml
 services:
