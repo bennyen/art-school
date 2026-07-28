@@ -11,6 +11,8 @@ progress bars and "continue watching" instead of seasons and episodes.
 
 No accounts, no cloud, no telemetry. Your files stay on your disk.
 
+![Home](docs/home.png)
+
 ---
 
 ## Features
@@ -36,10 +38,26 @@ No accounts, no cloud, no telemetry. Your files stay on your disk.
 
 ## Screenshots
 
-<!-- Add your own screenshots here, e.g.:
-![Home](docs/home.png)
+**Course page** — sections, watched state, per-lesson progress and course materials.
+
+![Course page](docs/course.png)
+
+**Player** — hovering the timeline shows a frame preview; the little markers are your
+own notes, and clicking one jumps straight to that moment.
+
 ![Player](docs/player.png)
--->
+
+**Notes** — pinned to a timestamp, grouped by lesson, and available in a drawer that
+also works in fullscreen.
+
+![Notes drawer](docs/player-notes.png)
+
+**Sketch over a note** — pen, colors and eraser on top of the text, flattened to a PNG
+when you save.
+
+![Note editor](docs/note-editor.png)
+
+<sub>Screenshots taken with a generated demo library — the courses and instructors are fictional.</sub>
 
 ---
 
