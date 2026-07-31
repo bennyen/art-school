@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { apiGet, CourseSummary, fmtClock, fmtDuration, HomeData } from "../api";
 import { IconArchive, IconCheck, IconPlay, IconUser } from "../components/Icons";
 
 /** "Movie poster" card: portrait, with tags and stats — used in the My courses row */
 function PosterCard({ c }: { c: CourseSummary }) {
+  const { t } = useTranslation();
   return (
     <Link to={`/course/${c.id}`} className="poster-card">
       <img src={`/api/thumb/${c.id}`} alt={c.title} loading="lazy" />
@@ -12,7 +14,7 @@ function PosterCard({ c }: { c: CourseSummary }) {
       {c.category && <span className="badge poster-badge">{c.category}</span>}
       {c.progressPct === 100 && (
         <span className="badge badge-done poster-done">
-          <IconCheck size={11} /> Completed
+          <IconCheck size={11} /> {t("home.completed")}
         </span>
       )}
       <div className="poster-body">
@@ -23,8 +25,8 @@ function PosterCard({ c }: { c: CourseSummary }) {
           </span>
         )}
         <span className="poster-meta">
-          {c.lessonCount} lessons
-          {c.sectionCount > 1 ? ` · ${c.sectionCount} modules` : ""}
+          {t("home.lessons_count", { count: c.lessonCount })}
+          {c.sectionCount > 1 ? ` · ${t("home.modules_count", { count: c.sectionCount })}` : ""}
           {c.totalDuration ? ` · ${fmtDuration(c.totalDuration)}${c.durationPartial ? "+" : ""}` : ""}
         </span>
         <div className="progress-bar poster-progress">
@@ -37,6 +39,7 @@ function PosterCard({ c }: { c: CourseSummary }) {
 
 /** Compact card: small 16:9 thumbnail — used in the per-category rows */
 function CompactCard({ c }: { c: CourseSummary }) {
+  const { t } = useTranslation();
   return (
     <Link to={`/course/${c.id}`} className="compact-card">
       <div className="compact-thumb">
@@ -52,7 +55,7 @@ function CompactCard({ c }: { c: CourseSummary }) {
       </div>
       <span className="compact-title">{c.title}</span>
       <span className="compact-meta">
-        {c.completedCount}/{c.lessonCount} lessons
+        {t("home.completed_lessons", { completed: c.completedCount, total: c.lessonCount })}
         {c.totalDuration ? ` · ${fmtDuration(c.totalDuration)}${c.durationPartial ? "+" : ""}` : ""}
       </span>
     </Link>
@@ -60,6 +63,7 @@ function CompactCard({ c }: { c: CourseSummary }) {
 }
 
 export default function Home() {
+  const { t } = useTranslation();
   const [data, setData] = useState<HomeData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,8 +71,8 @@ export default function Home() {
     apiGet<HomeData>("/api/courses").then(setData).catch((e) => setError(String(e)));
   }, []);
 
-  if (error) return <div className="page center-msg">Failed to load: {error}</div>;
-  if (!data) return <div className="page center-msg">Loading...</div>;
+  if (error) return <div className="page center-msg">{t("home.failed_to_load", { error })}</div>;
+  if (!data) return <div className="page center-msg">{t("home.loading")}</div>;
 
   const ready = data.courses.filter((c) => c.status === "ready");
   const notReady = data.courses.filter((c) => c.status !== "ready");
@@ -81,7 +85,7 @@ export default function Home() {
       {/* ---- continue watching: simple YouTube-style card ---- */}
       {data.continueWatching.length > 0 && (
         <section>
-          <h2 className="row-title">Continue watching</h2>
+          <h2 className="row-title">{t("home.continue_watching")}</h2>
           <div className="scroll-row continue-row">
             {data.continueWatching.map((item) => (
               <Link key={item.lessonId} to={`/lesson/${item.lessonId}`} className="continue-card">
@@ -103,7 +107,7 @@ export default function Home() {
                   <span className="continue-lesson">{item.lessonTitle}</span>
                   <span className="continue-course">{item.courseTitle}</span>
                   {item.isNext ? (
-                    <span className="continue-time next">Next lesson</span>
+                    <span className="continue-time next">{t("home.next_lesson")}</span>
                   ) : (
                     <span className="continue-time">
                       {fmtClock(item.position)}
@@ -119,7 +123,7 @@ export default function Home() {
 
       {/* ---- my courses: portrait posters, one row with horizontal scroll ---- */}
       <section>
-        <h2 className="row-title">My courses</h2>
+        <h2 className="row-title">{t("home.my_courses")}</h2>
         <div className="scroll-row poster-row">
           {ready.map((c) => (
             <PosterCard key={c.id} c={c} />
@@ -130,7 +134,7 @@ export default function Home() {
       {/* ---- one compact row per category ---- */}
       {categories.map((cat) => (
         <section key={cat}>
-          <h2 className="row-title">Courses in {cat}</h2>
+          <h2 className="row-title">{t("home.courses_in", { category: cat })}</h2>
           <div className="scroll-row compact-row">
             {ready
               .filter((c) => c.category === cat)
@@ -144,7 +148,7 @@ export default function Home() {
       {/* ---- not ready ---- */}
       {notReady.length > 0 && (
         <section>
-          <h2 className="row-title">Not ready</h2>
+          <h2 className="row-title">{t("home.not_ready")}</h2>
           <div className="scroll-row compact-row">
             {notReady.map((c) => (
               <div key={c.id} className="compact-card compact-disabled">
@@ -154,7 +158,7 @@ export default function Home() {
                   </span>
                 </div>
                 <span className="compact-title">{c.title}</span>
-                <span className="compact-meta">Extract the archives (.rar/.zip)</span>
+                <span className="compact-meta">{t("home.extract_archives")}</span>
               </div>
             ))}
           </div>

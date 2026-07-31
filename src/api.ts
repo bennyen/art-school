@@ -23,12 +23,13 @@ const absPath = (relPath: string) => path.join(config.coursesPath, relPath);
 const DIRECT_PLAY = new Set([".mp4", ".m4v", ".webm"]);
 
 // ---------- material types ----------
-export type MaterialKind = "video" | "image" | "pdf" | "text" | "audio" | "brush" | "psd" | "clip" | "archive" | "other";
+export type MaterialKind = "video" | "image" | "pdf" | "text" | "audio" | "html" | "brush" | "psd" | "clip" | "archive" | "other";
 
 const KIND_BY_EXT: Record<string, MaterialKind> = {
   ".mov": "video", ".mp4": "video", ".m4v": "video", ".mkv": "video", ".webm": "video", ".avi": "video",
   ".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image", ".webp": "image", ".bmp": "image",
   ".pdf": "pdf",
+  ".html": "html", ".htm": "html",
   ".txt": "text", ".md": "text",
   ".mp3": "audio", ".wav": "audio", ".m4a": "audio", ".ogg": "audio",
   ".abr": "brush",
@@ -38,7 +39,7 @@ const KIND_BY_EXT: Record<string, MaterialKind> = {
 };
 
 // kinds the browser can open directly (or through remux, for video)
-const VIEWABLE: Set<MaterialKind> = new Set(["video", "image", "pdf", "text", "audio"]);
+const VIEWABLE: Set<MaterialKind> = new Set(["video", "image", "pdf", "text", "audio", "html"]);
 
 const materialKind = (relPath: string): MaterialKind =>
   KIND_BY_EXT[path.extname(relPath).toLowerCase()] ?? "other";
@@ -466,6 +467,7 @@ api.get("/materials/:id/view", async (req, res) => {
   }
 
   if (kind === "text") res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  if (kind === "html") res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.sendFile(file); // sendFile already handles Content-Type and Range (mp4 seeking)
 });
 

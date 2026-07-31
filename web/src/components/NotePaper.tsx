@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { NoteRow, fmtClock, noteDrawingUrl } from "../api";
 import { IconCheck, IconEraser, IconPencil, IconTrash, IconX } from "./Icons";
 
@@ -35,6 +36,7 @@ export default function NotePaper({
   onClose,
   headerExtra
 }: NotePaperProps) {
+  const { t } = useTranslation();
   const [text, setText] = useState(note?.text ?? "");
   const [drawMode, setDrawMode] = useState(false);
   // once started, the canvas stays mounted until save (otherwise unsaved strokes would be lost)
@@ -136,11 +138,11 @@ export default function NotePaper({
         <span className="note-paper-actions">
           {headerExtra}
           {!readOnly && onDelete && (
-            <button className="note-tool" onClick={onDelete} title="Delete note">
+            <button className="note-tool" onClick={onDelete} title={t("note_paper.delete_note")}>
               <IconTrash size={15} />
             </button>
           )}
-          <button className="note-tool" onClick={onClose} title="Close">
+          <button className="note-tool" onClick={onClose} title={t("note_paper.close")}>
             <IconX size={15} />
           </button>
         </span>
@@ -154,7 +156,7 @@ export default function NotePaper({
             className="note-paper-text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Write your note..."
+            placeholder={t("note_paper.placeholder")}
             disabled={drawMode}
             autoFocus={!drawMode}
           />
@@ -190,7 +192,7 @@ export default function NotePaper({
                   setEraser(false);
                 }
               }}
-              title={drawMode ? "Exit drawing mode" : "Draw over the note"}
+              title={drawMode ? t("note_paper.exit_drawing") : t("note_paper.draw_over")}
             >
               <IconPencil size={15} />
             </button>
@@ -205,17 +207,17 @@ export default function NotePaper({
                       setPenColor(c);
                       setEraser(false);
                     }}
-                    title="Pen color"
+                    title={t("note_paper.pen_color")}
                   />
                 ))}
                 <button
                   className={`note-tool${eraser ? " active" : ""}`}
                   onClick={() => setEraser((v) => !v)}
-                  title="Eraser"
+                  title={t("note_paper.eraser")}
                 >
                   <IconEraser size={15} />
                 </button>
-                <button className="note-tool" onClick={clearDrawing} title="Clear drawing">
+                <button className="note-tool" onClick={clearDrawing} title={t("note_paper.clear_drawing")}>
                   <IconTrash size={15} />
                 </button>
               </>
@@ -223,7 +225,7 @@ export default function NotePaper({
           </span>
           <button className="btn-primary note-save" onClick={handleSave} disabled={saving}>
             <IconCheck size={15} />
-            {saving ? "Saving..." : "Save"}
+            {saving ? t("note_paper.saving") : t("note_paper.save")}
           </button>
         </div>
       )}

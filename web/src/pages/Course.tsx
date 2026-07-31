@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { apiGet, CourseDetail, fmtDuration, listNotes, NoteRow, saveProgress } from "../api";
 import Materials from "../components/Materials";
 import EditCourse from "../components/EditCourse";
@@ -7,6 +8,7 @@ import NotesPanel from "../components/NotesPanel";
 import { IconCheck, IconPencil, IconPlay, IconUser } from "../components/Icons";
 
 export default function Course() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +29,8 @@ export default function Course() {
 
   useEffect(refreshNotes, [refreshNotes]);
 
-  if (error) return <div className="page center-msg">Failed to load: {error}</div>;
-  if (!course) return <div className="page center-msg">Loading...</div>;
+  if (error) return <div className="page center-msg">{t("course.failed_to_load", { error })}</div>;
+  if (!course) return <div className="page center-msg">{t("course.loading")}</div>;
 
   const allLessons = course.sections.flatMap((s) => s.lessons);
   const total = allLessons.length;
@@ -51,8 +53,8 @@ export default function Course() {
       <div className="course-hero">
         <img className="course-hero-img" src={`/api/thumb/${course.id}?v=${thumbVer}`} alt="" />
         <div className="course-hero-grad" />
-        <button className="hero-edit" onClick={() => setEditing(true)} title="Edit course">
-          <IconPencil size={15} /> Edit
+        <button className="hero-edit" onClick={() => setEditing(true)} title={t("course.edit_course")}>
+          <IconPencil size={15} /> {t("course.edit")}
         </button>
         <div className="course-hero-body">
           {course.category && <span className="badge">{course.category}</span>}
@@ -67,15 +69,15 @@ export default function Course() {
               <div style={{ width: `${pct}%` }} />
             </div>
             <span className="progress-label">
-              {done}/{total} lessons · {pct}%
-              {moduleCount > 1 ? ` · ${moduleCount} modules` : ""}
+              {t("course.lessons_count", { done, total, pct })}
+              {moduleCount > 1 ? ` · ${t("course.modules_count", { count: moduleCount })}` : ""}
               {totalDuration > 0 ? ` · ${fmtDuration(totalDuration)}${durationPartial ? "+" : ""}` : ""}
             </span>
           </div>
           {continueLesson && (
             <Link to={`/lesson/${continueLesson.id}`} className="btn-primary">
               <IconPlay size={15} />
-              {done === 0 ? "Start course" : pct === 100 ? "Watch again" : "Resume where you left off"}
+              {done === 0 ? t("course.start_course") : pct === 100 ? t("course.watch_again") : t("course.resume")}
             </Link>
           )}
         </div>
@@ -84,7 +86,7 @@ export default function Course() {
       {course.sections.map((section, i) => (
         <details key={i} className="section" open={section.lessons.some((l) => !l.completed) || course.sections.length === 1}>
           <summary>
-            <span className="section-title">{section.title ?? "Lessons"}</span>
+            <span className="section-title">{section.title ?? t("course.lessons")}</span>
             <span className="section-meta">
               {section.lessons.filter((l) => l.completed).length}/{section.lessons.length}
             </span>
@@ -97,7 +99,7 @@ export default function Course() {
                 <li key={l.id} className={l.completed ? "lesson done" : "lesson"}>
                   <button
                     className="lesson-check"
-                    title={l.completed ? "Mark as unwatched" : "Mark as watched"}
+                    title={l.completed ? t("course.mark_unwatched") : t("course.mark_watched")}
                     onClick={() => toggleComplete(l.id, l.position, !l.completed)}
                   >
                     {l.completed ? <IconCheck size={13} /> : null}
@@ -126,13 +128,13 @@ export default function Course() {
 
       <details className="section" open={notes.length > 0}>
         <summary>
-          <span className="section-title">Notes</span>
+          <span className="section-title">{t("course.notes")}</span>
           <span className="section-meta">{notes.length}</span>
         </summary>
         <NotesPanel courseId={course.id} notes={notes} onRefresh={refreshNotes} />
       </details>
 
-      <Materials materials={course.materials} title="Materials" />
+      <Materials materials={course.materials} title={t("course.materials")} />
 
       {editing && (
         <EditCourse

@@ -48,6 +48,7 @@ export type MaterialKind =
   | "psd"
   | "clip"
   | "archive"
+  | "html"
   | "other";
 
 export interface MaterialRow {

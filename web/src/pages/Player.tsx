@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   apiGet,
   CourseDetail,
@@ -73,6 +74,7 @@ function loadSubStyle(): SubStyle {
 const sanitizeCue = (t: string) => t.replace(/<(?!\/?(i|b|u)\b)[^>]*>/gi, "");
 
 export default function Player() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -278,7 +280,7 @@ export default function Player() {
     setPlaying(false);
     if (mode === "direct") switchMode("remux", lastPos.current);
     else if (mode === "remux") switchMode("transcode", lastPos.current);
-    else setFatal("This video could not be played, not even re-encoded. Check the ffmpeg install on the server.");
+    else setFatal(t("player.fatal_error"));
   };
 
   // ---- subtitles: rendered by us (customizable overlay) ----
@@ -482,8 +484,8 @@ export default function Player() {
     else void wrapRef.current?.requestFullscreen();
   };
 
-  if (error) return <div className="page center-msg">Failed to load: {error}</div>;
-  if (!data) return <div className="page center-msg">Loading...</div>;
+  if (error) return <div className="page center-msg">{t("course.failed_to_load", { error })}</div>;
+  if (!data) return <div className="page center-msg">{t("course.loading")}</div>;
 
   const totalLessons = course ? course.sections.reduce((n, s) => n + s.lessons.length, 0) : 0;
 
@@ -512,14 +514,14 @@ export default function Player() {
     <div className="player-page">
       <div className="player-topbar">
         <Link to={`/course/${data.course.id}`} className="back-link">
-          ← Back to course
+          {t("player.back_to_course")}
         </Link>
         <div className="topbar-nav">
           <button
             className="round-btn"
             onClick={() => data.prev && navigate(`/lesson/${data.prev.id}`)}
             disabled={!data.prev}
-            title={data.prev ? `Previous: ${data.prev.title}` : "First lesson"}
+            title={data.prev ? t("player.previous_lesson_title", { title: data.prev.title }) : t("player.first_lesson")}
           >
             <IconChevronLeft size={18} />
           </button>
@@ -527,7 +529,7 @@ export default function Player() {
             className="round-btn"
             onClick={() => data.next && navigate(`/lesson/${data.next.id}`)}
             disabled={!data.next}
-            title={data.next ? `Next: ${data.next.title}` : "Last lesson"}
+            title={data.next ? t("player.next_lesson_title", { title: data.next.title }) : t("player.last_lesson")}
           >
             <IconChevronRight size={18} />
           </button>
@@ -542,10 +544,10 @@ export default function Player() {
             <button
               className={data.completed ? "btn-watched active" : "btn-watched"}
               onClick={toggleWatched}
-              title={data.completed ? "Mark as unwatched" : "Mark as watched"}
+              title={data.completed ? t("player.mark_unwatched") : t("player.mark_watched")}
             >
               <IconCheck size={14} />
-              {data.completed ? "Watched" : "Mark as watched"}
+              {data.completed ? t("player.watched") : t("player.mark_watched")}
             </button>
           </div>
 
@@ -609,14 +611,14 @@ export default function Player() {
 
             {fatal && (
               <div className="player-error">
-                <div className="player-error-title">{fatal}</div>
+                <div className="player-error-title">{t("player.fatal_error")}</div>
                 <button
                   className="btn-primary"
                   onClick={() =>
                     switchMode(compat ? "transcode" : data.directPlay ? "direct" : "remux", lastPos.current)
                   }
                 >
-                  Try again
+                  {t("player.try_again")}
                 </button>
               </div>
             )}
@@ -728,23 +730,23 @@ export default function Player() {
               </div>
               <div className="controls-row">
                 <div className="controls-left">
-                  <button onClick={() => data.prev && navigate(`/lesson/${data.prev.id}`)} disabled={!data.prev} title="Previous lesson">
+                  <button onClick={() => data.prev && navigate(`/lesson/${data.prev.id}`)} disabled={!data.prev} title={t("player.previous_lesson")}>
                     <IconSkipPrev size={19} />
                   </button>
-                  <button className="play-btn" onClick={togglePlay} title={playing ? "Pause (space)" : "Play (space)"}>
+                  <button className="play-btn" onClick={togglePlay} title={playing ? t("player.pause") : t("player.play")}>
                     {playing ? <IconPause size={24} /> : <IconPlay size={24} />}
                   </button>
-                  <button onClick={() => data.next && navigate(`/lesson/${data.next.id}`)} disabled={!data.next} title="Next lesson">
+                  <button onClick={() => data.next && navigate(`/lesson/${data.next.id}`)} disabled={!data.next} title={t("player.next_lesson")}>
                     <IconSkipNext size={19} />
                   </button>
-                  <button onClick={() => seek(effTime - 10)} title="Back 10s (←)">
+                  <button onClick={() => seek(effTime - 10)} title={t("player.back_10s")}>
                     <IconRewind10 size={21} />
                   </button>
-                  <button onClick={() => seek(effTime + 10)} title="Forward 10s (→)">
+                  <button onClick={() => seek(effTime + 10)} title={t("player.forward_10s")}>
                     <IconForward10 size={21} />
                   </button>
                   <div className="ctrl-volume">
-                    <button onClick={toggleMute} title={volume === 0 ? "Unmute (m)" : "Mute (m)"}>
+                    <button onClick={toggleMute} title={volume === 0 ? t("player.unmute") : t("player.mute")}>
                       {volume === 0 ? <IconVolumeMute size={20} /> : <IconVolume size={20} />}
                     </button>
                     <input
@@ -761,7 +763,7 @@ export default function Player() {
                             ? `linear-gradient(to right, #fff ${100 / MAX_VOLUME}%, var(--accent) ${100 / MAX_VOLUME}%, var(--accent) ${(volume / MAX_VOLUME) * 100}%, rgba(255,255,255,0.25) ${(volume / MAX_VOLUME) * 100}%)`
                             : `linear-gradient(to right, #fff ${(volume / MAX_VOLUME) * 100}%, rgba(255,255,255,0.25) ${(volume / MAX_VOLUME) * 100}%)`
                       }}
-                      title={`Volume ${Math.round(volume * 100)}%`}
+                      title={t("player.volume_percent", { percent: Math.round(volume * 100) })}
                     />
                     {volume > 1 && <span className="volume-boost">{Math.round(volume * 100)}%</span>}
                   </div>
@@ -775,16 +777,16 @@ export default function Player() {
                       <button
                         className={subLang ? "cc-on" : menu === "cc" || menu === "substyle" ? "active" : undefined}
                         onClick={() => setMenu(menu === "cc" || menu === "substyle" ? null : "cc")}
-                        title="Subtitles"
+                        title={t("player.subtitles")}
                       >
                         <IconCC size={20} />
                       </button>
                       {menu === "cc" && (
                         <div className="menu">
-                          <div className="menu-label">Subtitles</div>
+                          <div className="menu-label">{t("player.subtitles")}</div>
                           <button className="menu-item" onClick={() => chooseLang(null)}>
                             <span className="mi-check">{subLang === null && <IconCheck size={14} />}</span>
-                            Off
+                            {t("player.off")}
                           </button>
                           {data.subtitles.map((s) => (
                             <button key={s.id} className="menu-item" onClick={() => chooseLang(s.lang)}>
@@ -797,7 +799,7 @@ export default function Player() {
                             <span className="mi-check">
                               <IconTypography size={15} />
                             </span>
-                            Subtitle style
+                            {t("player.subtitle_style")}
                             <span className="mi-arrow">
                               <IconChevronRight size={13} />
                             </span>
@@ -807,10 +809,10 @@ export default function Player() {
                       {menu === "substyle" && (
                         <div className="menu sub-panel">
                           <button className="menu-item menu-back" onClick={() => setMenu("cc")}>
-                            <IconChevronLeft size={14} /> Subtitle style
+                            <IconChevronLeft size={14} /> {t("player.subtitle_style")}
                           </button>
                           <label className="sub-panel-row">
-                            <span>Size</span>
+                            <span>{t("player.size")}</span>
                             <input
                               type="range"
                               min={14}
@@ -822,7 +824,7 @@ export default function Player() {
                             <b>{subStyle.size}</b>
                           </label>
                           <div className="sub-panel-row">
-                            <span>Color</span>
+                            <span>{t("player.color")}</span>
                             <span className="sub-swatches">
                               {SUB_COLORS.map((c) => (
                                 <button
@@ -836,7 +838,7 @@ export default function Player() {
                             </span>
                           </div>
                           <label className="sub-panel-row">
-                            <span>Background</span>
+                            <span>{t("player.background")}</span>
                             <input
                               type="range"
                               min={0}
@@ -851,12 +853,12 @@ export default function Player() {
                             className="menu-item"
                             onClick={() => updateSubStyle({ outline: !subStyle.outline })}
                           >
-                            <span className="menu-item-text">Outline</span>
+                            <span className="menu-item-text">{t("player.outline")}</span>
                             <span className={subStyle.outline ? "switch on" : "switch"}>
                               <span className="switch-knob" />
                             </span>
                           </button>
-                          <div className="sub-panel-note">Applies to every course</div>
+                          <div className="sub-panel-note">{t("player.applies_to_all")}</div>
                         </div>
                       )}
                     </div>
@@ -865,13 +867,13 @@ export default function Player() {
                     <button
                       className={menu === "settings" ? "active" : undefined}
                       onClick={() => setMenu(menu === "settings" ? null : "settings")}
-                      title="Settings"
+                      title={t("player.settings")}
                     >
                       <IconSettings size={20} />
                     </button>
                     {menu === "settings" && (
                       <div className="menu">
-                        <div className="menu-label">Speed</div>
+                        <div className="menu-label">{t("player.speed")}</div>
                         <div className="rate-row">
                           {RATES.map((r) => (
                             <button
@@ -879,7 +881,7 @@ export default function Player() {
                               className={r === rate ? "rate-pill active" : "rate-pill"}
                               onClick={() => setRate(r)}
                             >
-                              {r === 1 ? "Normal" : `${r}x`}
+                              {r === 1 ? t("player.normal") : `${r}x`}
                             </button>
                           ))}
                         </div>
@@ -892,15 +894,15 @@ export default function Player() {
                             localStorage.setItem(AUTONEXT_KEY, v ? "1" : "0");
                           }}
                         >
-                          <span className="menu-item-text">Autoplay next lesson</span>
+                          <span className="menu-item-text">{t("player.autoplay_next")}</span>
                           <span className={autoNext ? "switch on" : "switch"}>
                             <span className="switch-knob" />
                           </span>
                         </button>
                         <button className="menu-item" onClick={() => setCompatMode(!compat)}>
                           <span className="menu-item-text">
-                            Compatibility mode
-                            <small>Re-encodes the video — use it if playback stalls or shows no picture</small>
+                            {t("player.compatibility_mode")}
+                            <small>{t("player.compatibility_desc")}</small>
                           </span>
                           <span className={compat ? "switch on" : "switch"}>
                             <span className="switch-knob" />
@@ -915,11 +917,11 @@ export default function Player() {
                       e.stopPropagation();
                       setNotesDrawer((v) => !v);
                     }}
-                    title="Notes (n)"
+                    title={t("player.notes")}
                   >
                     <IconNote size={19} />
                   </button>
-                  <button onClick={toggleFullscreen} title="Fullscreen (f)">
+                  <button onClick={toggleFullscreen} title={t("player.fullscreen")}>
                     <IconFullscreen size={19} />
                   </button>
                 </div>
@@ -935,8 +937,8 @@ export default function Player() {
                 onPointerDown={(e) => e.stopPropagation()}
               >
                 <div className="notes-drawer-head">
-                  <span>Notes</span>
-                  <button className="note-tool" onClick={() => setNotesDrawer(false)} title="Close">
+                  <span>{t("player.notes")}</span>
+                  <button className="note-tool" onClick={() => setNotesDrawer(false)} title={t("player.close")}>
                     <IconX size={15} />
                   </button>
                 </div>
@@ -957,27 +959,27 @@ export default function Player() {
           </div>
 
           {/* ---- materials below the player ---- */}
-          {course && <Materials materials={course.materials} title="Course materials" />}
+          {course && <Materials materials={course.materials} title={t("player.course_materials")} />}
         </div>
 
         {/* ---- right column: course lessons ---- */}
         <aside className="player-sidebar">
           <div className="sidebar-header">
             <div className="sidebar-course">{data.course.title}</div>
-            {totalLessons > 0 && <div className="sidebar-count">{totalLessons} lessons</div>}
+            {totalLessons > 0 && <div className="sidebar-count">{t("player.total_lessons", { count: totalLessons })}</div>}
           </div>
           <div className="sidebar-tabs">
             <button
               className={sidebarTab === "lessons" ? "sidebar-tab active" : "sidebar-tab"}
               onClick={() => setSidebarTab("lessons")}
             >
-              Lessons
+              {t("player.lessons_tab")}
             </button>
             <button
               className={sidebarTab === "notes" ? "sidebar-tab active" : "sidebar-tab"}
               onClick={() => setSidebarTab("notes")}
             >
-              Notes{notes.length > 0 ? ` (${notes.length})` : ""}
+              {t("player.notes_tab")}{notes.length > 0 ? ` (${notes.length})` : ""}
             </button>
           </div>
           {sidebarTab === "notes" && (
@@ -1037,7 +1039,7 @@ export default function Player() {
               return (
                 <details key={i} className="sidebar-section" open={containsCurrent}>
                   <summary>
-                    <span className="sidebar-section-title">{section.title ?? "Lessons"}</span>
+                    <span className="sidebar-section-title">{section.title ?? t("player.lessons_tab")}</span>
                     <span className="section-meta">
                       {section.lessons.filter((l) => l.completed).length}/{section.lessons.length}
                     </span>

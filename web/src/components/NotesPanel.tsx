@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   NoteRow,
   createNote,
@@ -48,6 +49,7 @@ export default function NotesPanel({
   openNoteId,
   onOpenNoteHandled
 }: NotesPanelProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState<OpenNote | null>(null);
   const [saving, setSaving] = useState(false);
@@ -103,7 +105,7 @@ export default function NotesPanel({
 
   const handleDelete = async () => {
     if (!open?.note) return;
-    if (!confirm("Delete this note?")) return;
+    if (!confirm(t("notes.delete_confirm"))) return;
     await deleteNote(open.note.id);
     setOpen(null);
     onRefresh();
@@ -120,10 +122,10 @@ export default function NotesPanel({
   };
 
   const heading = (o: OpenNote): string => {
-    if (!o.lessonId) return "Course note";
+    if (!o.lessonId) return t("notes.course_note");
     const title = o.note?.lessonTitle ?? notes.find((n) => n.lessonId === o.lessonId)?.lessonTitle;
-    if (o.note && !o.note.lessonTitle) return "(lesson removed)";
-    return title ?? (o.lessonId === currentLessonId ? "This lesson" : "Lesson");
+    if (o.note && !o.note.lessonTitle) return t("notes.lesson_removed");
+    return title ?? (o.lessonId === currentLessonId ? t("notes.this_lesson") : t("notes.lesson"));
   };
 
   // groups while keeping the API order: course-wide first, then per lesson
@@ -135,7 +137,7 @@ export default function NotesPanel({
     else
       groups.push({
         key,
-        title: n.lessonId ? n.lessonTitle ?? "(lesson removed)" : "Course notes",
+        title: n.lessonId ? n.lessonTitle ?? t("notes.lesson_removed") : t("notes.course_notes"),
         items: [n]
       });
   }
@@ -149,7 +151,7 @@ export default function NotesPanel({
             o.note ?? ({ lessonId: o.lessonId, timeSec: o.timeSec } as NoteRow)
           )
         }
-        title={o.lessonId === currentLessonId ? "Jump to this moment" : "Go to the lesson"}
+        title={o.lessonId === currentLessonId ? t("notes.jump_to_moment") : t("notes.go_to_lesson")}
       >
         <IconPlayOutline size={15} />
       </button>
@@ -187,16 +189,16 @@ export default function NotesPanel({
             {currentLessonId && getCurrentTime && (
               <button className="btn-secondary notes-add" onClick={newNoteHere}>
                 <IconNote size={15} />
-                Note at this moment
+                {t("notes.note_at_moment")}
               </button>
             )}
             <button className="btn-secondary notes-add" onClick={newCourseNote}>
               <IconPencil size={15} />
-              Course note
+              {t("notes.add_course_note")}
             </button>
           </div>
 
-          {notes.length === 0 && <p className="notes-empty">No notes yet.</p>}
+          {notes.length === 0 && <p className="notes-empty">{t("notes.no_notes")}</p>}
 
           <div className="notes-list">
             {groups.map((g) => (
@@ -212,7 +214,7 @@ export default function NotesPanel({
                       {n.timeSec != null && (
                         <span
                           className="note-card-time"
-                          title="Watch from this moment"
+                          title={t("notes.watch_from_moment")}
                           onClick={(e) => {
                             e.stopPropagation();
                             goToMoment(n);
@@ -223,13 +225,13 @@ export default function NotesPanel({
                         </span>
                       )}
                       {n.hasDrawing && (
-                        <span className="note-card-badge" title="Has a drawing">
+                        <span className="note-card-badge" title={t("notes.has_drawing")}>
                           <IconPencil size={11} />
                         </span>
                       )}
                     </span>
                     <span className="note-card-text">
-                      {n.text.trim() ? n.text : n.hasDrawing ? "(drawing)" : "(empty)"}
+                      {n.text.trim() ? n.text : n.hasDrawing ? t("notes.drawing") : t("notes.empty")}
                     </span>
                   </button>
                 ))}

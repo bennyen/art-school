@@ -1,8 +1,11 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "./i18n";
 import { IconRefresh, Logo } from "./components/Icons";
 
 export default function App() {
+  const { t } = useTranslation();
   const location = useLocation();
   const isPlayer = location.pathname.startsWith("/lesson/");
   const [scanning, setScanning] = useState(false);
@@ -17,6 +20,10 @@ export default function App() {
     }
   };
 
+  const toggleLang = () => {
+    i18n.changeLanguage(i18n.language === "en" ? "pt-BR" : "en");
+  };
+
   return (
     <div className={isPlayer ? "app app-player" : "app"}>
       {!isPlayer && (
@@ -27,10 +34,15 @@ export default function App() {
               ART<em>SCHOOL</em>
             </span>
           </Link>
-          <button className="btn-ghost" onClick={rescan} disabled={scanning}>
-            <IconRefresh size={15} />
-            {scanning ? "Scanning..." : "Rescan"}
-          </button>
+          <div className="topbar-actions">
+            <button className="btn-ghost lang-toggle" onClick={toggleLang}>
+              {i18n.language === "en" ? "PT" : "EN"}
+            </button>
+            <button className="btn-ghost" onClick={rescan} disabled={scanning}>
+              <IconRefresh size={15} />
+              {scanning ? t("app.scanning") : t("app.rescan")}
+            </button>
+          </div>
         </header>
       )}
       <Outlet />

@@ -19,7 +19,12 @@ if (fs.existsSync(webDist)) {
   app.use(express.static(webDist));
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api")) return next();
-    res.sendFile(path.join(webDist, "index.html"));
+    const html = fs.readFileSync(path.join(webDist, "index.html"), "utf-8");
+    const injected = html.replace(
+      "</head>",
+      `<script>window.__RUNTIME_CONFIG__ = ${JSON.stringify({ defaultLang: process.env.DEFAULT_LANG || "en" })}</script></head>`
+    );
+    res.type("html").send(injected);
   });
 }
 
