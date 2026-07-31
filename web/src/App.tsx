@@ -1,7 +1,6 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import i18n from "./i18n";
 import { IconRefresh, Logo } from "./components/Icons";
 
 export default function App() {
@@ -20,10 +19,6 @@ export default function App() {
     }
   };
 
-  const toggleLang = () => {
-    i18n.changeLanguage(i18n.language === "en" ? "pt-BR" : "en");
-  };
-
   return (
     <div className={isPlayer ? "app app-player" : "app"}>
       {!isPlayer && (
@@ -35,9 +30,6 @@ export default function App() {
             </span>
           </Link>
           <div className="topbar-actions">
-            <button className="btn-ghost lang-toggle" onClick={toggleLang}>
-              {i18n.language === "en" ? "PT" : "EN"}
-            </button>
             <button className="btn-ghost" onClick={rescan} disabled={scanning}>
               <IconRefresh size={15} />
               {scanning ? t("app.scanning") : t("app.rescan")}
